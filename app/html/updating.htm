@@ -186,3 +186,32 @@ body {
   </div>
   <p class="sub-text">Please do not restart the daemon</p>
 </div>
+<div style="position:fixed;left:0;right:0;bottom:20px;display:flex;justify-content:center">
+  <div style="width:60%;background:#0b1220;padding:12px;border-radius:8px;border:1px solid #222;color:#9aa4b2">
+    <div style="font-weight:600;margin-bottom:6px">Status: <span id="update-status">Initializing</span></div>
+    <div style="background:#0f1720;border-radius:6px;height:12px;overflow:hidden">
+      <div id="update-bar" style="height:12px;width:0%;background:#58a6ff;transition:width 400ms ease"></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:#8b949e">Message: <span id="update-message">Starting...</span></div>
+    <div style="margin-top:8px;font-size:12px;color:#8b949e">Last: <span id="update-last">-</span></div>
+  </div>
+</div>
+
+<script>
+  async function fetchState(){
+    try{
+      const r = await fetch('/api/update/state');
+      if(!r.ok) return;
+      const j = await r.json();
+      document.getElementById('update-status').innerText = j.status || 'idle';
+      document.getElementById('update-message').innerText = j.message || '';
+      const progress = j.progress !== undefined ? j.progress : (j.status === 'applied'?100:0);
+      document.getElementById('update-bar').style.width = Math.min(100,progress)+'%';
+      document.getElementById('update-last').innerText = (j.last && (j.last.tag || j.last.name)) || (j.last && j.last.path) || '-';
+    }catch(e){
+      // ignore
+    }
+  }
+  setInterval(fetchState, 1000);
+  fetchState();
+</script>

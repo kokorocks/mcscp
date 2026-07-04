@@ -82,6 +82,8 @@ def maintenance_mode():
         "update_status",
         "update_ws",
         "trigger_update",
+        "update_state",
+        "update",
         "static",
         "updating",
     }
@@ -136,25 +138,43 @@ def trigger_update():
         global UPDATING
         try:
             UPDATING = True
-            update_state['status'] = 'running'
+            update_state.update({
+                'status': 'running',
+                'progress': 0,
+                'message': 'Starting update',
+            })
             info = updater.check_and_prepare_update(repo, asset_pattern=pattern, rollout_percent=rollout)
             update_state['last'] = info
+            update_state['progress'] = 30
+            update_state['message'] = 'Checked latest release'
             if info.get('status') == 'downloaded':
-                apply_result = updater.apply_update(info['path'], exclude=exclude)
-                update_state['details'] = apply_result
-                update_state['status'] = apply_result.get('status')
-                if apply_result.get('status') == 'applied':
-                    # best-effort restart of the current process to pick up new code
-                    try:
-                        import sys
-                        os.execv(sys.executable, [sys.executable] + sys.argv)
-                    except Exception:
-                        pass
+                update_state['progress'] = 60
+                update_state['message'] = 'Preparing to apply update'
+                try:
+                    update_state['message'] = 'Applying update'
+                    apply_result = updater.apply_update(info['path'], exclude=exclude)
+                    update_state['details'] = apply_result
+                    update_state['status'] = apply_result.get('status')
+                    update_state['progress'] = 95 if apply_result.get('status') == 'applied' else 0
+                    if apply_result.get('status') == 'applied':
+                        update_state['message'] = 'Update applied; restarting'
+                        # best-effort restart of the current process to pick up new code
+                        try:
+                            import sys
+                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                        except Exception:
+                            pass
+                except Exception as e:
+                    update_state['status'] = 'error'
+                    update_state['details'] = str(e)
+                    update_state['message'] = 'Failed to apply update: ' + str(e)
         except Exception as e:
             update_state['status'] = 'error'
             update_state['details'] = str(e)
+            update_state['message'] = str(e)
         finally:
             UPDATING = False
+            update_state['progress'] = 100 if update_state.get('status') == 'applied' else update_state.get('progress', 0)
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True, "status": "started"}), 202
@@ -204,20 +224,29 @@ def _start_update_scheduler():
                 if UPDATING:
                     time.sleep(10)
                     continue
-                update_state['status'] = 'checking'
+                update_state.update({'status': 'checking', 'progress': 5, 'message': 'Checking for updates'})
                 info = updater.check_and_prepare_update(repo, asset_pattern=pattern)
                 update_state['last'] = info
+                update_state['progress'] = 30
+                update_state['message'] = 'Latest release checked'
                 if info.get('status') == 'downloaded':
-                    update_state['status'] = 'applying'
-                    res = updater.apply_update(info['path'], exclude=exclude)
-                    update_state['details'] = res
-                    update_state['status'] = res.get('status')
-                    if res.get('status') == 'applied':
-                        try:
-                            import sys
-                            os.execv(sys.executable, [sys.executable] + sys.argv)
-                        except Exception:
-                            pass
+                    # apply with a clear UPDATING flag during apply and ensure it is reset
+                    try:
+                        UPDATING = True
+                        update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
+                        res = updater.apply_update(info['path'], exclude=exclude)
+                        update_state['details'] = res
+                        update_state['status'] = res.get('status')
+                        update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
+                        if res.get('status') == 'applied':
+                            update_state['message'] = 'Update applied; restarting'
+                            try:
+                                import sys
+                                os.execv(sys.executable, [sys.executable] + sys.argv)
+                            except Exception:
+                                pass
+                    finally:
+                        UPDATING = False
             except Exception as e:
                 update_state['status'] = 'error'
                 update_state['details'] = str(e)
@@ -1474,6 +1503,18 @@ def updating():
         return open('html/updating.htm').read()
     else:
         return redirect(url_for('index'))
+
+
+@app.route('/api/update/state')
+def update_state_api():
+    # public read-only state for the updating page
+    s = update_state.copy()
+    # redact large details
+    if 'details' in s and isinstance(s['details'], dict):
+        d = s['details'].copy()
+        # keep only status and backup
+        s['details'] = {k: d.get(k) for k in ('status','backup') if k in d}
+    return jsonify(s)
 
 @app.route("/verify-users")
 def verify_users():
