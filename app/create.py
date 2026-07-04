@@ -1917,7 +1917,7 @@ def create_server(
     # ICON
     # ----------------------------
     if not icon_path or not os.path.exists(icon_path):
-        icon_path="server-imgs/default.png"
+        icon_path="default.png"
 
     server_icon_path = os.path.join(folder, "server-icon.png")
     preview_icon_path = f"server-imgs/{globalnum}.png"

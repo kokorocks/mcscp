@@ -1420,7 +1420,7 @@ def server_icon(sid):
     path = f"server-imgs/{sid}.png"
 
     if not os.path.exists(path):
-        return send_file("server-imgs/default.png", mimetype="image/png")
+        return send_file("default.png", mimetype="image/png")
     
     if "user" not in session:abort(401)
 
