@@ -1,54 +1,34 @@
-# Ignore all contents
-minecraft_servers/*
+# Python
+__pycache__/
+*.py[cod]
 
-# But don't ignore directories themselves
-!minecraft_servers/
-!minecraft_servers/**/
+# Virtualenv / environment
+venv/
+.env
 
-# Ignore all contents
-server-imgs/*
+# Logs and runtime files
+logs/
+*.log
 
-# But don't ignore directories themselves
-!server-imgs/
-!server-imgs/**/
-
-# Ignore all contents
-server-imgs/*
-
-# But don't ignore directories themselves
-!server-imgs/
-!server-imgs/**/
-
-# Ignore all contents
-servers/*
-
-# But don't ignore directories themselves
-!servers/
-!servers/**/
-
-# Ignore all contents
-temp/*
-
-# But don't ignore directories themselves
-!temp/
-!temp/**/
-
-# Ignore all contents
-nodes/*
-
-# But don't ignore directories themselves
-!nodes/
-!nodes/**/
-
-# Ignore all contents
-logs/*
-
-# But don't ignore directories themselves
-!logs/
-!logs/**/
-
+# Generated server data and uploads
+minecraft_servers/
+server-imgs/
+servers/
+temp/
+nodes/
+uploads/
 cache/
+backups/
+updates/
 
-users.json
-
+# Local config (do not commit secrets or local state)
 server-config.json
+users.json
+node-config.json
+
+# IDE / Editor
+.vscode/
+*.swp
+
+# Database
+*.sqlite3
