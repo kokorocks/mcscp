@@ -34,6 +34,57 @@ import updater
 
 update_state = {"status": "idle", "last": None, "details": None}
 
+# -------------------------
+# GIT-BASED UPDATER CONFIG
+# -------------------------
+# The updater now pulls from a real git repo instead of downloading GitHub
+# release zips. Configure via env vars, with sane fallbacks.
+GIT_REPO_URL = os.environ.get('GIT_REPO_URL') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
+GIT_BRANCH = os.environ.get('GIT_BRANCH', 'main')
+# The app lives inside the repo it updates, so the repo root is this file's directory.
+LOCAL_REPO_PATH = Path(__file__).resolve().parent
+
+# Files that, if changed upstream, mark an update as "important" (surfaced in
+# update_state['last']['important_change'] / ['matched_watch_files']).
+UPDATE_WATCH_FILES = [f.strip() for f in os.environ.get('UPDATE_WATCH_FILES', 'version.txt').split(',') if f.strip()]
+
+# Live data that must survive every update untouched, even if the incoming
+# commit happens to track a file with the same name (e.g. a template
+# server-config.json committed to the repo). Backed up before the update and
+# restored afterward, overwriting whatever git just checked out for these paths.
+UPDATE_PRESERVE = [p.strip() for p in os.environ.get(
+    'UPDATE_PRESERVE',
+    'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes,uploads,temp'
+).split(',') if p.strip()]
+
+
+def _to_git_url(repo):
+    """Accept either a full git URL or a GitHub 'owner/repo' shorthand."""
+    if repo.startswith(('http://', 'https://', 'git@')):
+        return repo
+    return f"https://github.com/{repo}.git"
+
+
+def _run_update_check():
+    return updater.check_for_git_update(
+        _to_git_url(GIT_REPO_URL),
+        LOCAL_REPO_PATH,
+        branch=GIT_BRANCH,
+        watch_files=UPDATE_WATCH_FILES,
+    )
+
+
+def _run_update_apply(info, extra_exclude=None):
+    return updater.apply_git_update(
+        LOCAL_REPO_PATH,
+        remote_sha=info.get('remote_sha'),
+        branch=GIT_BRANCH,
+        backup_root='backups',
+        exclude=extra_exclude,
+        preserve=UPDATE_PRESERVE,
+    )
+
+
 app = Flask(__name__)
 
 # --- auth decorator defined early so routes can use it safely
@@ -110,19 +161,12 @@ def maintenance_mode():
 @app.route('/api/update/check')
 @login_required
 def update_status():
-    """Check GitHub latest release and prepare download (does not force install)."""
-    # repo can come from environment or caller
-    repo = request.args.get('repo') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
-    # token intentionally not used for unauthenticated requests per user's request
-    if not repo:
-        return jsonify({"error": "repo required (owner/repo)"}), 400
+    """Check the tracked git branch for new commits. Does not apply anything."""
+    repo = request.args.get('repo') or GIT_REPO_URL
     try:
-        info = updater.check_and_prepare_update(repo)
-        if isinstance(info, dict):
-            if info.get('status') == 'no_release':
-                return jsonify({"ok": True, "update": info, "message": "no releases found"}), 200
-            if info.get('status') == 'no_asset':
-                return jsonify({"ok": True, "update": info, "message": "no downloadable asset found in latest release"}), 200
+        info = updater.check_for_git_update(
+            _to_git_url(repo), LOCAL_REPO_PATH, branch=GIT_BRANCH, watch_files=UPDATE_WATCH_FILES
+        )
         return jsonify({"ok": True, "update": info})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -136,53 +180,65 @@ def trigger_update():
         abort(403)
 
     data = request.json or {}
-    repo = data.get('repo') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
-    pattern = data.get('pattern')
-    rollout = int(data.get('rollout', 100))
-    exclude = data.get('exclude', [])  # list of file/dir names or relative paths to skip
+    repo = data.get('repo') or GIT_REPO_URL
+    branch = data.get('branch') or GIT_BRANCH
+    # extra names to exclude, on top of the always-preserved live data
+    extra_exclude = data.get('exclude', [])
 
     if not repo:
-        return jsonify({"error": "repo required (owner/repo)"}), 400
+        return jsonify({"error": "repo required"}), 400
 
     def _run():
-        # start background updater thread and return immediately
         def _runner():
             global UPDATING
             try:
                 update_state.update({
                     'status': 'running',
                     'progress': 0,
-                    'message': 'Starting update',
+                    'message': 'Checking for updates',
                 })
-                info = updater.check_and_prepare_update(repo, asset_pattern=pattern, rollout_percent=rollout)
+                info = updater.check_for_git_update(
+                    _to_git_url(repo), LOCAL_REPO_PATH, branch=branch, watch_files=UPDATE_WATCH_FILES
+                )
                 update_state['last'] = info
                 update_state['progress'] = 30
-                update_state['message'] = 'Checked latest release'
-                if isinstance(info, dict):
-                    if info.get('status') == 'no_release':
-                        update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
-                        return
-                    if info.get('status') == 'no_asset':
-                        update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
-                        return
-                if info.get('status') == 'downloaded':
-                    update_state['progress'] = 60
-                    update_state['message'] = 'Applying update'
-                    UPDATING = True
-                    try:
-                        apply_result = updater.apply_update(info['path'], exclude=exclude)
-                        update_state['details'] = apply_result
-                        update_state['status'] = apply_result.get('status')
-                        update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
-                        if apply_result.get('status') == 'applied':
-                            update_state['message'] = 'Update applied; restarting'
-                            try:
-                                import sys
-                                os.execv(sys.executable, [sys.executable] + sys.argv)
-                            except Exception:
-                                pass
-                    finally:
-                        UPDATING = False
+                update_state['message'] = 'Checked latest commit'
+
+                if info['status'] == 'up_to_date':
+                    update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                    return
+                if info['status'] == 'cloned':
+                    update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                    return
+
+                # status == 'update_available'
+                if info.get('important_change'):
+                    update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
+
+                update_state['progress'] = 60
+                update_state['message'] = 'Applying update'
+                UPDATING = True
+                try:
+                    apply_result = updater.apply_git_update(
+                        LOCAL_REPO_PATH,
+                        remote_sha=info.get('remote_sha'),
+                        branch=branch,
+                        backup_root='backups',
+                        exclude=extra_exclude,
+                        preserve=UPDATE_PRESERVE,
+                    )
+                    update_state['details'] = apply_result
+                    update_state['status'] = apply_result.get('status')
+                    update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
+                    if apply_result.get('status') == 'applied':
+                        update_state['message'] = 'Update applied; restarting'
+                        try:
+                            import sys
+                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                        except Exception:
+                            pass
+                finally:
+                    UPDATING = False
             except Exception as e:
                 update_state['status'] = 'error'
                 update_state['details'] = str(e)
@@ -190,6 +246,8 @@ def trigger_update():
 
         threading.Thread(target=_runner, daemon=True).start()
         return jsonify({"ok": True, "status": "started"}), 202
+
+    return _run()
 
 def require_owner():
 
@@ -216,14 +274,14 @@ def _start_update_scheduler():
     if not auto:
         return
 
-    repo = os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
+    repo = GIT_REPO_URL
+    branch = GIT_BRANCH
     if not repo:
         # nothing to do without a target repo
         return
 
-    pattern = os.environ.get('UPDATE_ASSET_PATTERN')
-    exclude_env = os.environ.get('UPDATE_EXCLUDE', 'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes')
-    exclude = [p.strip() for p in exclude_env.split(',') if p.strip()]
+    exclude_env = os.environ.get('UPDATE_EXCLUDE', '')
+    extra_exclude = [p.strip() for p in exclude_env.split(',') if p.strip()]
     try:
         interval = int(os.environ.get('UPDATE_INTERVAL', '3600'))
     except Exception:
@@ -237,37 +295,48 @@ def _start_update_scheduler():
                     time.sleep(10)
                     continue
                 update_state.update({'status': 'checking', 'progress': 5, 'message': 'Checking for updates'})
-                info = updater.check_and_prepare_update(repo, asset_pattern=pattern)
+                info = updater.check_for_git_update(
+                    _to_git_url(repo), LOCAL_REPO_PATH, branch=branch, watch_files=UPDATE_WATCH_FILES
+                )
                 update_state['last'] = info
                 update_state['progress'] = 30
-                update_state['message'] = 'Latest release checked'
-                if isinstance(info, dict):
-                    if info.get('status') == 'no_release':
-                        update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
-                        time.sleep(interval)
-                        continue
-                    if info.get('status') == 'no_asset':
-                        update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
-                        time.sleep(interval)
-                        continue
-                if info.get('status') == 'downloaded':
-                    # apply with a clear UPDATING flag during apply and ensure it is reset
-                    try:
-                        UPDATING = True
-                        update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
-                        res = updater.apply_update(info['path'], exclude=exclude)
-                        update_state['details'] = res
-                        update_state['status'] = res.get('status')
-                        update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
-                        if res.get('status') == 'applied':
-                            update_state['message'] = 'Update applied; restarting'
-                            try:
-                                import sys
-                                os.execv(sys.executable, [sys.executable] + sys.argv)
-                            except Exception:
-                                pass
-                    finally:
-                        UPDATING = False
+                update_state['message'] = 'Checked latest commit'
+
+                if info['status'] == 'up_to_date':
+                    update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                    time.sleep(interval)
+                    continue
+                if info['status'] == 'cloned':
+                    update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                    time.sleep(interval)
+                    continue
+
+                if info.get('important_change'):
+                    update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
+
+                try:
+                    UPDATING = True
+                    update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
+                    res = updater.apply_git_update(
+                        LOCAL_REPO_PATH,
+                        remote_sha=info.get('remote_sha'),
+                        branch=branch,
+                        backup_root='backups',
+                        exclude=extra_exclude,
+                        preserve=UPDATE_PRESERVE,
+                    )
+                    update_state['details'] = res
+                    update_state['status'] = res.get('status')
+                    update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
+                    if res.get('status') == 'applied':
+                        update_state['message'] = 'Update applied; restarting'
+                        try:
+                            import sys
+                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                        except Exception:
+                            pass
+                finally:
+                    UPDATING = False
             except Exception as e:
                 update_state['status'] = 'error'
                 update_state['details'] = str(e)
@@ -1514,7 +1583,7 @@ def servers():
 def update():
     global UPDATING
     require_owner()
-    repo = os.environ.get('GITHUB_REPO') or 'kokorocks/mcscp'
+    repo = GIT_REPO_URL
     if not repo:
         update_state.update({'status': 'error', 'message': 'No repository configured for update', 'progress': 0})
         return redirect('/updating')
@@ -1528,38 +1597,44 @@ def update():
     def _do_update():
         global UPDATING
         try:
-            info = updater.check_and_prepare_update(repo)
+            info = updater.check_for_git_update(
+                _to_git_url(repo), LOCAL_REPO_PATH, branch=GIT_BRANCH, watch_files=UPDATE_WATCH_FILES
+            )
             update_state['last'] = info
             update_state['progress'] = 30
-            if isinstance(info, dict):
-                if info.get('status') == 'no_release':
-                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
-                    return
-                if info.get('status') == 'no_asset':
-                    update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
-                    return
-                if info.get('status') == 'already_downloaded':
-                    update_state.update({'status': 'already_downloaded', 'message': 'Latest release already downloaded', 'progress': 100})
-                    return
-            if info.get('status') == 'downloaded':
-                update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
-                UPDATING = True
-                try:
-                    apply_result = updater.apply_update(info['path'])
-                    update_state['details'] = apply_result
-                    update_state['status'] = apply_result.get('status')
-                    update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
-                    if apply_result.get('status') == 'applied':
-                        update_state['message'] = 'Update applied; restarting'
-                        try:
-                            import sys
-                            os.execv(sys.executable, [sys.executable] + sys.argv)
-                        except Exception:
-                            pass
-                finally:
-                    UPDATING = False
-            else:
-                update_state['message'] = 'Checked latest release'
+
+            if info['status'] == 'up_to_date':
+                update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                return
+            if info['status'] == 'cloned':
+                update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                return
+
+            if info.get('important_change'):
+                update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
+
+            update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
+            UPDATING = True
+            try:
+                apply_result = updater.apply_git_update(
+                    LOCAL_REPO_PATH,
+                    remote_sha=info.get('remote_sha'),
+                    branch=GIT_BRANCH,
+                    backup_root='backups',
+                    preserve=UPDATE_PRESERVE,
+                )
+                update_state['details'] = apply_result
+                update_state['status'] = apply_result.get('status')
+                update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
+                if apply_result.get('status') == 'applied':
+                    update_state['message'] = 'Update applied; restarting'
+                    try:
+                        import sys
+                        os.execv(sys.executable, [sys.executable] + sys.argv)
+                    except Exception:
+                        pass
+            finally:
+                UPDATING = False
         except Exception as e:
             update_state.update({'status': 'error', 'message': str(e), 'details': str(e), 'progress': 0})
 
