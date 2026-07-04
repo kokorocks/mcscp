@@ -194,10 +194,15 @@ body {
     </div>
     <div style="margin-top:8px;font-size:12px;color:#8b949e">Message: <span id="update-message">Starting...</span></div>
     <div style="margin-top:8px;font-size:12px;color:#8b949e">Last: <span id="update-last">-</span></div>
+    <button id="update-close" style="margin-top:10px;padding:10px 18px;background:#58a6ff;color:#0d1117;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:none">Back to Dashboard</button>
   </div>
 </div>
 
 <script>
+  function isFinalStatus(status) {
+    return ['applied','error','no_release','no_asset','already_downloaded'].includes(status);
+  }
+
   async function fetchState(){
     try{
       const r = await fetch('/api/update/state');
@@ -208,10 +213,27 @@ body {
       const progress = j.progress !== undefined ? j.progress : (j.status === 'applied'?100:0);
       document.getElementById('update-bar').style.width = Math.min(100,progress)+'%';
       document.getElementById('update-last').innerText = (j.last && (j.last.tag || j.last.name)) || (j.last && j.last.path) || '-';
+      const closeButton = document.getElementById('update-close');
+      const spinner = document.querySelector('.spinner');
+      const loadingText = document.querySelector('.loading-text');
+      if (isFinalStatus(j.status)) {
+        closeButton.style.display = 'inline-block';
+        if (spinner) spinner.style.animationPlayState = 'paused';
+        if (loadingText) {
+          loadingText.innerText = j.status === 'applied' ? 'Update complete' : 'Update finished';
+        }
+      } else {
+        closeButton.style.display = 'none';
+        if (spinner) spinner.style.animationPlayState = 'running';
+        if (loadingText) loadingText.innerText = 'Updating Server...';
+      }
     }catch(e){
       // ignore
     }
   }
+  document.getElementById('update-close').addEventListener('click', function(){
+    window.location.href = '/';
+  });
   setInterval(fetchState, 1000);
   fetchState();
 </script>

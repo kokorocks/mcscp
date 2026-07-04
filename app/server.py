@@ -118,8 +118,11 @@ def update_status():
         return jsonify({"error": "repo required (owner/repo)"}), 400
     try:
         info = updater.check_and_prepare_update(repo)
-        if isinstance(info, dict) and info.get('status') == 'no_release':
-            return jsonify({"ok": True, "update": info, "message": "no releases found"}), 200
+        if isinstance(info, dict):
+            if info.get('status') == 'no_release':
+                return jsonify({"ok": True, "update": info, "message": "no releases found"}), 200
+            if info.get('status') == 'no_asset':
+                return jsonify({"ok": True, "update": info, "message": "no downloadable asset found in latest release"}), 200
         return jsonify({"ok": True, "update": info})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -155,9 +158,13 @@ def trigger_update():
                 update_state['last'] = info
                 update_state['progress'] = 30
                 update_state['message'] = 'Checked latest release'
-                if isinstance(info, dict) and info.get('status') == 'no_release':
-                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
-                    return
+                if isinstance(info, dict):
+                    if info.get('status') == 'no_release':
+                        update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
+                        return
+                    if info.get('status') == 'no_asset':
+                        update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
+                        return
                 if info.get('status') == 'downloaded':
                     update_state['progress'] = 60
                     update_state['message'] = 'Applying update'
@@ -234,10 +241,15 @@ def _start_update_scheduler():
                 update_state['last'] = info
                 update_state['progress'] = 30
                 update_state['message'] = 'Latest release checked'
-                if isinstance(info, dict) and info.get('status') == 'no_release':
-                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
-                    time.sleep(interval)
-                    continue
+                if isinstance(info, dict):
+                    if info.get('status') == 'no_release':
+                        update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
+                        time.sleep(interval)
+                        continue
+                    if info.get('status') == 'no_asset':
+                        update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
+                        time.sleep(interval)
+                        continue
                 if info.get('status') == 'downloaded':
                     # apply with a clear UPDATING flag during apply and ensure it is reset
                     try:
@@ -1502,20 +1514,56 @@ def servers():
 def update():
     global UPDATING
     require_owner()
-    # trigger a background update using configured repo
     repo = os.environ.get('GITHUB_REPO') or 'kokorocks/mcscp'
-    # reuse trigger_update path but don't require JSON body; start thread directly
-    update_state.update({'status':'checking','message':'Manual check started','progress':5})
-    def _do_check():
+    if not repo:
+        update_state.update({'status': 'error', 'message': 'No repository configured for update', 'progress': 0})
+        return redirect('/updating')
+
+    if UPDATING:
+        update_state.update({'status': 'running', 'message': 'Update already in progress', 'progress': update_state.get('progress', 0)})
+        return redirect('/updating')
+
+    update_state.update({'status': 'checking', 'message': 'Manual update started', 'progress': 5})
+
+    def _do_update():
+        global UPDATING
         try:
             info = updater.check_and_prepare_update(repo)
             update_state['last'] = info
             update_state['progress'] = 30
-            update_state['message'] = 'Checked latest release'
+            if isinstance(info, dict):
+                if info.get('status') == 'no_release':
+                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
+                    return
+                if info.get('status') == 'no_asset':
+                    update_state.update({'status': 'no_asset', 'message': 'No downloadable asset found in latest release', 'progress': 0})
+                    return
+                if info.get('status') == 'already_downloaded':
+                    update_state.update({'status': 'already_downloaded', 'message': 'Latest release already downloaded', 'progress': 100})
+                    return
+            if info.get('status') == 'downloaded':
+                update_state.update({'status': 'applying', 'progress': 60, 'message': 'Applying update'})
+                UPDATING = True
+                try:
+                    apply_result = updater.apply_update(info['path'])
+                    update_state['details'] = apply_result
+                    update_state['status'] = apply_result.get('status')
+                    update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
+                    if apply_result.get('status') == 'applied':
+                        update_state['message'] = 'Update applied; restarting'
+                        try:
+                            import sys
+                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                        except Exception:
+                            pass
+                finally:
+                    UPDATING = False
+            else:
+                update_state['message'] = 'Checked latest release'
         except Exception as e:
-            update_state.update({'status':'error','message':str(e),'details':str(e)})
+            update_state.update({'status': 'error', 'message': str(e), 'details': str(e), 'progress': 0})
 
-    threading.Thread(target=_do_check, daemon=True).start()
+    threading.Thread(target=_do_update, daemon=True).start()
     return redirect('/updating')
     
 

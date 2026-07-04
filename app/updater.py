@@ -38,6 +38,7 @@ def _extract_archive(archive_path, dest_dir):
 def check_latest_release(repo, token=None):
     """Return latest release dict from GitHub API for `owner/repo`."""
     api = f"https://api.github.com/repos/{repo}/releases/latest"
+    #kokorocks/mcscp
     headers = {"Accept": "application/vnd.github.v3+json"}
     if token:
         headers["Authorization"] = f"token {token}"
@@ -66,6 +67,13 @@ def download_asset(url, dest_path, token=None):
 def find_asset_for_release(release, pattern=None):
     assets = release.get('assets', [])
     if not assets:
+        # fallback to the release archive URLs (zipball/tarball) if no assets uploaded
+        zip_url = release.get('zipball_url')
+        tar_url = release.get('tarball_url')
+        if zip_url:
+            return {"name": f"{release.get('tag_name') or 'release'}-zipball.zip", "browser_download_url": zip_url}
+        if tar_url:
+            return {"name": f"{release.get('tag_name') or 'release'}-tarball.tar.gz", "browser_download_url": tar_url}
         return None
     if pattern:
         for a in assets:
@@ -84,7 +92,7 @@ def verify_with_checksum(asset, release, download_path, token=None):
     assets = release.get('assets', [])
     checksum_text = None
     for a in assets:
-        if a.get('name', '').endswith('.sha256') or 'checksums' in a.get('name',''):
+        if a.get('name', '').endswith('.sha256') or 'checksums' in a.get('name', ''):
             tmp = tempfile.mktemp()
             download_asset(a.get('browser_download_url'), tmp, token=token)
             with open(tmp, 'r', encoding='utf-8', errors='ignore') as f:
@@ -120,14 +128,14 @@ def check_and_prepare_update(repo, asset_pattern=None, token=None, rollout_perce
 
     asset = find_asset_for_release(release, pattern=asset_pattern)
     if not asset:
-        raise RuntimeError('No suitable asset found in release')
+        return {"status": "no_asset", "tag": tag, "repo": repo}
 
     updates_dir = Path('updates')
     dest_dir = updates_dir / tag
     if dest_dir.exists():
         return {"status": "already_downloaded", "tag": tag, "path": str(dest_dir)}
 
-    tmpfile = tempfile.mktemp(suffix='-'+asset.get('name','download'))
+    tmpfile = tempfile.mktemp(suffix='-' + asset.get('name', 'download'))
     download_asset(asset.get('browser_download_url'), tmpfile, token=token)
     verify_result, sha = verify_with_checksum(asset, release, tmpfile, token=token)
 
@@ -146,10 +154,39 @@ def check_and_prepare_update(repo, asset_pattern=None, token=None, rollout_perce
     }
 
 
-def apply_update(prepared_path, install_root=None, backup_root='backups', exclude=None):
+# ---------------------------------------------------------------------------
+# Version tracking
+#
+# `check_and_prepare_update` only tells you whether a build has been
+# downloaded/extracted into updates/<tag>. It says nothing about whether that
+# tag has actually been applied (swapped into install_root) yet. These
+# helpers persist a small marker file so the orchestration logic below can
+# tell "extracted" apart from "installed".
+# ---------------------------------------------------------------------------
+
+def _current_version_path(install_root):
+    return Path(install_root) / '.current_version'
+
+
+def get_current_version(install_root=None):
+    install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
+    marker = _current_version_path(install_root)
+    if marker.exists():
+        return marker.read_text(encoding='utf-8').strip()
+    return None
+
+
+def _set_current_version(install_root, tag):
+    marker = _current_version_path(install_root)
+    marker.write_text(tag, encoding='utf-8')
+
+
+def apply_update(prepared_path, install_root=None, backup_root='backups', exclude=None, tag=None):
     """Attempt an atomic-ish swap: backup current install, move new files into place.
 
     install_root defaults to repository root (parent of this file's parent).
+    On success, records `tag` (if provided) as the installed version so callers
+    can avoid re-applying the same update on every run.
     Returns dict with status and backup path on success, or error details on failure.
     """
     install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
@@ -163,15 +200,16 @@ def apply_update(prepared_path, install_root=None, backup_root='backups', exclud
     # normalize exclude list of relative paths/names
     exclude = exclude or []
     exclude_set = set(exclude)
+
     def is_excluded(path: Path):
         # path relative to install_root
         try:
             rel = path.relative_to(install_root)
         except Exception:
             return False
-        parts = (str(rel).replace('\\','/')).split('/')
+        parts = (str(rel).replace('\\', '/')).split('/')
         # check if any prefix or filename in exclude_set matches
-        for i in range(1, len(parts)+1):
+        for i in range(1, len(parts) + 1):
             if '/'.join(parts[:i]) in exclude_set:
                 return True
         if parts[0] in exclude_set:
@@ -205,7 +243,65 @@ def apply_update(prepared_path, install_root=None, backup_root='backups', exclud
             else:
                 shutil.copy2(item, dest)
 
-        return {"status": "applied", "backup": str(backup_dir)}
+        if tag:
+            _set_current_version(install_root, tag)
+
+        return {"status": "applied", "backup": str(backup_dir), "tag": tag}
     except Exception as e:
         logger.exception('Failed to apply update')
         return {"status": "error", "error": str(e)}
+
+
+def run_update_cycle(repo, asset_pattern=None, token=None, install_root=None,
+                      backup_root='backups', exclude=None):
+    """Ties check_and_prepare_update + apply_update together, using the
+    on-disk version marker to avoid re-applying a tag that's already live.
+
+    This is the function most callers should use instead of calling
+    check_and_prepare_update / apply_update separately.
+    """
+    install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
+
+    result = check_and_prepare_update(repo, asset_pattern=asset_pattern, token=token)
+
+    if result["status"] not in ("downloaded", "already_downloaded"):
+        # no_release / no_asset -> nothing to apply
+        return result
+
+    tag = result["tag"]
+    current = get_current_version(install_root)
+
+    if current == tag:
+        return {"status": "up_to_date", "tag": tag, "path": result["path"]}
+
+    apply_result = apply_update(
+        result["path"],
+        install_root=install_root,
+        backup_root=backup_root,
+        exclude=exclude,
+        tag=tag,
+    )
+
+    if apply_result["status"] == "applied":
+        return {"status": "updated", "tag": tag, **apply_result}
+
+    return apply_result
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Check for and apply the latest GitHub release update.")
+    parser.add_argument("repo", help="owner/repo to check on GitHub")
+    parser.add_argument("--pattern", default=None, help="substring to match in asset filename")
+    parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN"), help="GitHub token (or set GITHUB_TOKEN env var)")
+    parser.add_argument("--install-root", default=None, help="root directory to apply updates into")
+    args = parser.parse_args()
+
+    outcome = run_update_cycle(
+        args.repo,
+        asset_pattern=args.pattern,
+        token=args.token,
+        install_root=args.install_root,
+    )
+    print(outcome)
