@@ -1,0 +1,43 @@
+[Logger] Logging to logs/2026-06-27_14-32-06.log
+[AUTOSTART] Listening on 25566
+2026-06-27 14:32:06,131 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-27 14:32:06,132 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-27 14:32:08,257 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:08] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 14:32:08,330 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:08] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 14:32:08,373 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:08] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:32:11,724 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:11] "GET /files/main/api/file?path=account-processing.py HTTP/1.1" 200 -
+2026-06-27 14:32:13,269 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:13] "GET /files/main/api/list?path=servers HTTP/1.1" 200 -
+2026-06-27 14:32:14,367 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:14] "GET /files/main/api/list?path=servers/106bc26a-0bb3-49ca-838b-d22cb9b56e68 HTTP/1.1" 200 -
+2026-06-27 14:32:16,089 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:16] "GET /files/main/api/list?path=servers HTTP/1.1" 200 -
+2026-06-27 14:32:19,294 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:19] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:32:20,667 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:20] "GET /files/main/api/list?path=html HTTP/1.1" 200 -
+2026-06-27 14:32:21,806 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:21] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:32:22,865 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:22] "GET /files/main/api/list?path=logs HTTP/1.1" 200 -
+2026-06-27 14:32:24,757 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:24] "GET /files/main/api/file?path=logs/2026-06-26_15-03-06.log HTTP/1.1" 200 -
+2026-06-27 14:32:26,372 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:32:26] "GET /files/main/api/file?path=logs/2026-06-26_14-56-50.log HTTP/1.1" 200 -
+2026-06-27 14:34:05,935 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:05] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 14:34:06,152 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:06] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 14:34:06,190 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:06] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:34:07,936 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:07] "GET /files/main/api/list?path=logs HTTP/1.1" 200 -
+2026-06-27 14:34:08,505 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:08] "GET /files/main/api/list?path=logs HTTP/1.1" 200 -
+2026-06-27 14:34:09,588 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:34:09] "GET /files/main/api/file?path=logs/2026-06-26_15-03-06.log HTTP/1.1" 200 -
+2026-06-27 14:36:27,005 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:27] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 14:36:27,181 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:27] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 14:36:27,214 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:27] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:36:28,772 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:28] "GET /files/main/api/list?path=logs HTTP/1.1" 200 -
+2026-06-27 14:36:29,684 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:29] "GET /files/main/api/file?path=logs/2026-06-26_15-03-06.log HTTP/1.1" 200 -
+2026-06-27 14:36:32,683 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:32] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:36:34,239 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:34] "GET /files/main/api/file?path=requirements.txt HTTP/1.1" 200 -
+2026-06-27 14:36:50,060 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:50] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 14:36:50,246 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:50] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 14:36:50,294 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:50] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 14:36:52,065 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 14:36:52] "GET /files/main/api/file?path=create.py HTTP/1.1" 200 -
+2026-06-27 15:54:23,445 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:23] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 15:54:23,814 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:23] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 15:54:23,851 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:23] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 15:54:28,155 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:28] "GET /files/main/api/file?path=create-server-test.py HTTP/1.1" 200 -
+2026-06-27 15:54:29,441 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:29] "GET /files/main/api/list?path=servers HTTP/1.1" 200 -
+2026-06-27 15:54:29,566 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:29] "GET /files/main/api/list?path=servers HTTP/1.1" 200 -

@@ -1,0 +1,106 @@
+[Logger] Logging to logs/2026-06-27_13-34-26.log
+[AUTOSTART] Listening on 25566
+2026-06-27 13:34:26,289 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-27 13:34:26,289 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-27 13:34:27,313 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:34:27] "[35m[1mGET /user HTTP/1.1[0m" 500 -
+2026-06-27 13:34:27,377 [ERROR] werkzeug: Error on request:
+Traceback (most recent call last):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 368, in execute
+    application_iter.close()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wsgi.py", line 274, in close
+    callback()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 402, in close
+    if hasattr(self.response, "close"):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem.
+2026-06-27 13:34:27,467 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:34:27] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 13:34:39,057 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:34:39] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:35:39,041 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:39] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:35:54,755 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:54] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:35:56,074 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:56] "GET / HTTP/1.1" 200 -
+2026-06-27 13:35:56,271 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:56] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2026-06-27 13:35:56,300 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:56] "GET /server-icon/1 HTTP/1.1" 200 -
+2026-06-27 13:35:56,525 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:35:56] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 13:36:17,225 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "GET / HTTP/1.1" 200 -
+2026-06-27 13:36:17,277 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "GET /server-icon/1 HTTP/1.1" 200 -
+2026-06-27 13:36:17,302 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2026-06-27 13:36:17,333 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:36:17,347 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "[35m[1mGET /user HTTP/1.1[0m" 500 -
+2026-06-27 13:36:17,353 [ERROR] werkzeug: Error on request:
+Traceback (most recent call last):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 368, in execute
+    application_iter.close()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wsgi.py", line 274, in close
+    callback()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 402, in close
+    if hasattr(self.response, "close"):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem.
+2026-06-27 13:36:17,423 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:17] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 13:36:19,395 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:19] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:36:21,447 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:21] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:36:24,374 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:24] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:36:25,537 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:25] "[35m[1mGET /user HTTP/1.1[0m" 500 -
+2026-06-27 13:36:25,539 [ERROR] werkzeug: Error on request:
+Traceback (most recent call last):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 368, in execute
+    application_iter.close()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wsgi.py", line 274, in close
+    callback()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 402, in close
+    if hasattr(self.response, "close"):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem.
+2026-06-27 13:36:25,581 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:25] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 13:36:26,429 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:26] "GET /servers HTTP/1.1" 200 -
+2026-06-27 13:36:27,170 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:27] "[35m[1mGET /user HTTP/1.1[0m" 500 -
+2026-06-27 13:36:27,173 [ERROR] werkzeug: Error on request:
+Traceback (most recent call last):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 371, in run_wsgi
+    execute(self.server.app)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/serving.py", line 368, in execute
+    application_iter.close()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wsgi.py", line 274, in close
+    callback()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/wrappers/response.py", line 402, in close
+    if hasattr(self.response, "close"):
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/local.py", line 519, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem.
+2026-06-27 13:36:28,496 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 13:36:28] "GET /servers HTTP/1.1" 200 -

@@ -1,0 +1,75 @@
+[Logger] Logging to logs/2026-06-26_15-03-06.log
+[AUTOSTART] Listening on 25566
+2026-06-26 15:03:06,871 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-26 15:03:06,872 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-26 15:03:08,757 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:08] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:08,779 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:08] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:09,587 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:09] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:09,603 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:09] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:11,608 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:11] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:11,623 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:11] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:14,242 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:14] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:14,517 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:14] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:15,612 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:15] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:15,636 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:15] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:17,659 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:17] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:17,674 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:17] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:19,732 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:19] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:19,748 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:19] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:21,785 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:21] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:21,807 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:21] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:23,847 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:23] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:23,863 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:23] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:26,015 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:26] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:26,283 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:26] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:28,176 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:28] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:28,195 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:28] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:30,927 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:30] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:30,941 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:30] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:32,944 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:32] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:32,958 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:32] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:34,757 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:34] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:34,785 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:34] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:36,385 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:36] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:36,401 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:36] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:38,442 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:38] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:38,465 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:38] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:40,250 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:40] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:40,262 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:40] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:41,635 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:41] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:41,652 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:41] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:43,892 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:43] "[32mGET /files/2 HTTP/1.1[0m" 308 -
+2026-06-26 15:03:44,038 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:44] "GET /servers HTTP/1.1" 200 -
+2026-06-26 15:03:44,071 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:44] "GET /files/2/ HTTP/1.1" 200 -
+Offline OFFLINE 2
+2026-06-26 15:03:44,122 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:44] "GET /logs/2 HTTP/1.1" 200 -
+2026-06-26 15:03:45,876 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:03:45] "GET /files/2/api/list?path= HTTP/1.1" 200 -
+2026-06-26 15:04:58,017 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:04:58] "GET /files/2/api/list?path=versions HTTP/1.1" 200 -
+2026-06-26 15:04:59,917 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:04:59] "GET /files/2/api/list?path=versions/26.1.2 HTTP/1.1" 200 -
+2026-06-26 15:05:01,395 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:01] "GET /files/2/api/list?path=versions HTTP/1.1" 200 -
+2026-06-26 15:05:01,660 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:01] "GET /files/2/api/list?path=versions HTTP/1.1" 200 -
+2026-06-26 15:05:02,367 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:02] "GET /files/2/api/list?path= HTTP/1.1" 200 -
+2026-06-26 15:05:06,201 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:06] "GET /servers HTTP/1.1" 200 -
+2026-06-26 15:05:08,319 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:08] "GET /servers HTTP/1.1" 200 -
+2026-06-26 15:05:10,404 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 15:05:10] "GET /servers HTTP/1.1" 200 -

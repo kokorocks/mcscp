@@ -1,0 +1,13 @@
+[Logger] Logging to logs/2026-06-26_20-40-35.log
+[AUTOSTART] Listening on 25566
+2026-06-26 20:40:35,855 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-26 20:40:35,855 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-26 20:40:38,228 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:38] "GET / HTTP/1.1" 200 -
+2026-06-26 20:40:38,379 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:38] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2026-06-26 20:40:38,426 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:38] "GET /server-icon/1 HTTP/1.1" 200 -
+2026-06-26 20:40:38,521 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:38] "GET /servers HTTP/1.1" 200 -
+2026-06-26 20:40:38,772 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:38] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-26 20:40:40,685 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:40:40] "GET /servers HTTP/1.1" 200 -

@@ -1,0 +1,16 @@
+[Logger] Logging to logs/2026-06-27_15-54-34.log
+[AUTOSTART] Listening on 25566
+2026-06-27 15:54:34,832 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-27 15:54:34,833 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-27 15:54:39,601 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:39] "GET /files/main/ HTTP/1.1" 200 -
+2026-06-27 15:54:42,513 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:42] "GET /files/main/api/list?path= HTTP/1.1" 200 -
+2026-06-27 15:54:42,785 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:42] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-06-27 15:54:54,148 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:54:54] "GET /files/main/api/file?path=account-processing.py HTTP/1.1" 200 -
+2026-06-27 15:55:07,575 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:55:07] "POST /files/main/api/save HTTP/1.1" 200 -
+2026-06-27 15:55:22,552 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:55:22] "GET /files/main/api/file?path=create.sh HTTP/1.1" 200 -
+2026-06-27 15:55:26,655 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:55:26] "GET /files/main/api/file?path=node-config.json HTTP/1.1" 200 -
+2026-06-27 15:55:30,584 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:55:30] "GET /files/main/api/list?path=uploads HTTP/1.1" 200 -
+2026-06-27 15:55:32,938 [INFO] werkzeug: 127.0.0.1 - - [27/Jun/2026 15:55:32] "GET /files/main/api/list?path= HTTP/1.1" 200 -

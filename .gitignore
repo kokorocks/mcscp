@@ -1,0 +1,54 @@
+# Ignore all contents
+minecraft_servers/*
+
+# But don't ignore directories themselves
+!minecraft_servers/
+!minecraft_servers/**/
+
+# Ignore all contents
+server-imgs/*
+
+# But don't ignore directories themselves
+!server-imgs/
+!server-imgs/**/
+
+# Ignore all contents
+server-imgs/*
+
+# But don't ignore directories themselves
+!server-imgs/
+!server-imgs/**/
+
+# Ignore all contents
+servers/*
+
+# But don't ignore directories themselves
+!servers/
+!servers/**/
+
+# Ignore all contents
+temp/*
+
+# But don't ignore directories themselves
+!temp/
+!temp/**/
+
+# Ignore all contents
+nodes/*
+
+# But don't ignore directories themselves
+!nodes/
+!nodes/**/
+
+# Ignore all contents
+logs/*
+
+# But don't ignore directories themselves
+!logs/
+!logs/**/
+
+cache/
+
+users.json
+
+server-config.json

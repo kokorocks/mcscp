@@ -1,0 +1,10 @@
+[Logger] Logging to logs/2026-06-29_16-49-06.log
+[AUTOSTART] Listening on 25566
+2026-06-29 16:49:07,257 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-29 16:49:07,260 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-29 16:49:10,781 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 16:49:10] "GET /servers HTTP/1.1" 200 -
+2026-06-29 16:49:12,377 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 16:49:12] "[32mGET /update HTTP/1.1[0m" 302 -
+2026-06-29 16:49:12,416 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 16:49:12] "GET /updating HTTP/1.1" 200 -

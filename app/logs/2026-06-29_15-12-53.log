@@ -1,0 +1,67 @@
+[Logger] Logging to logs/2026-06-29_15-12-53.log
+[AUTOSTART] Listening on 25566
+2026-06-29 15:12:53,345 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-29 15:12:53,345 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-29 15:12:56,284 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,290 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,301 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,310 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,319 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,329 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,339 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,348 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,357 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,363 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,370 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,378 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,383 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,392 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,397 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,405 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,412 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,420 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,428 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:12:56,435 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:12:56] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,590 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,598 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,608 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,624 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,645 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,670 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,683 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,689 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,702 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,708 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,718 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,725 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,734 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,741 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,751 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,758 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,770 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,780 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,787 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:26,795 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:26] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,302 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,312 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,323 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,332 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,342 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,351 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,358 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,364 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,375 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,381 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,389 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,394 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,402 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,408 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,413 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,422 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,428 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,436 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,444 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -
+2026-06-29 15:13:28,452 [INFO] werkzeug: 127.0.0.1 - - [29/Jun/2026 15:13:28] "[32mGET /updating HTTP/1.1[0m" 302 -

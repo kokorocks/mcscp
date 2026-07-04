@@ -1,0 +1,13 @@
+[Logger] Logging to logs/2026-06-29_16-48-23.log
+Traceback (most recent call last):
+  File "/mnt/c/Users/Kids Laptop/Documents/GitHub/mcservermanager/app/server.py", line 1314, in <module>
+    def update():
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/flask/sansio/scaffold.py", line 362, in decorator
+    self.add_url_rule(rule, endpoint, f, **options)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/flask/sansio/scaffold.py", line 47, in wrapper_func
+    return f(self, *args, **kwargs)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/flask/sansio/app.py", line 650, in add_url_rule
+    rule_obj = self.url_rule_class(rule, methods=methods, **options)
+  File "/home/kokorocks/.local/lib/python3.10/site-packages/werkzeug/routing/rules.py", line 474, in __init__
+    raise ValueError(f"URL rule '{string}' must start with a slash.")
+ValueError: URL rule 'update' must start with a slash.

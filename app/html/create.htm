@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Create Minecraft Server</title>
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script>
+(() => {
+    const theme = localStorage.getItem("mcscp-dashboard-theme");
+
+    switch (theme) {
+        case "theme-dark":
+            document.documentElement.setAttribute("data-theme", "dark");
+            break;
+
+        case "theme-oled":
+            document.documentElement.setAttribute("data-theme", "oled");
+            break;
+
+        case "theme-light":
+            document.documentElement.setAttribute("data-theme", "light");
+            break;
+
+        default:
+            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                document.documentElement.setAttribute("data-theme", "dark");
+            } else {
+                document.documentElement.setAttribute("data-theme", "light");
+            }
+    }
+})();
+</script>
+<style>
+
+:root,
+[data-theme="light"] {
+    --bg-sidebar:#f5f5f7;
+    --bg-main:#ffffff;
+
+    --bg-gradient-start:#f7f7f8;
+    --bg-gradient-end:#ececec;
+
+    --bg-card:rgba(255,255,255,.88);
+    --bg-card-border:rgba(255,255,255,.6);
+
+    --bg-input:#ffffff;
+    --bg-input-hover:#fafafa;
+    --bg-hover:#f5f5f7;
+    --bg-soft:#f8f8f8;
+
+    --border-color:#e5e5e7;
+
+    --text-main:#1d1d1f;
+    --text-secondary:#86868b;
+
+    --accent-blue:#0071e3;
+    --accent-blue-hover:#005bb5;
+
+    --danger:#ff3b30;
+    --success:#34c759;
+}
+
+[data-theme="dark"] {
+    --bg-sidebar:#1c1c1e;
+    --bg-main:#121212;
+
+    --bg-gradient-start:#121212;
+    --bg-gradient-end:#1c1c1e;
+
+    --bg-card:rgba(28,28,30,.92);
+    --bg-card-border:rgba(58,58,60,.8);
+
+    --bg-input:#242426;
+    --bg-input-hover:#2c2c2e;
+    --bg-hover:#2a2a2d;
+    --bg-soft:#1c1c1e;
+
+    --border-color:#3a3a3c;
+
+    --text-main:#f5f5f7;
+    --text-secondary:#a1a1a6;
+
+    --accent-blue:#0a84ff;
+    --accent-blue-hover:#409cff;
+
+    --danger:#ff453a;
+    --success:#30d158;
+}
+
+[data-theme="oled"] {
+    --bg-sidebar:#000000;
+    --bg-main:#000000;
+
+    --bg-gradient-start:#000000;
+    --bg-gradient-end:#000000;
+
+    --bg-card:rgba(0,0,0,.96);
+    --bg-card-border:rgba(34,35,38,.9);
+
+    --bg-input:#111111;
+    --bg-input-hover:#181818;
+    --bg-hover:#111111;
+    --bg-soft:#080808;
+
+    --border-color:#222326;
+
+    --text-main:#ffffff;
+    --text-secondary:#888888;
+
+    --accent-blue:#0a84ff;
+    --accent-blue-hover:#409cff;
+
+    --danger:#ff453a;
+    --success:#30d158;
+}
+
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+}
+
+body{
+    background:linear-gradient(
+        to bottom right,
+        var(--bg-gradient-start),
+        var(--bg-gradient-end)
+    );
+    min-height:100vh;
+    color:var(--text-main);
+    padding:40px;
+}
+
+.page{
+    max-width:1200px;
+    margin:auto;
+}
+
+.topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:30px;
+}
+
+.title-group h1{
+    font-size:34px;
+    font-weight:700;
+    margin-bottom:6px;
+}
+
+.title-group p{
+    color:var(--text-secondary);
+    font-size:14px;
+}
+
+.btn{
+    border:1px solid var(--border-color);
+    background:var(--bg-card);
+    color:var(--text-main);
+    border-radius:10px;
+    padding:10px 18px;
+    font-size:14px;
+    cursor:pointer;
+    transition:.15s;
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.btn:hover{
+    background:var(--bg-hover);
+}
+
+.btn-primary{
+    background:var(--accent-blue);
+    color:white;
+    border:none;
+}
+
+.btn-primary:hover{
+    background:var(--accent-blue-hover);
+}
+
+.btn-danger { background: rgba(255, 59, 48, 0.1); color: var(--danger); border: none; }
+.btn-danger:hover { background: rgba(255, 59, 48, 0.2); }
+.btn-icon { padding: 10px; }
+
+.layout{
+    display:grid;
+    grid-template-columns:1fr 340px;
+    gap:24px;
+}
+
+.card{
+    background:var(--bg-card);
+    border:1px solid var(--bg-card-border);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+    border-radius:22px;
+    padding:24px;
+    box-shadow:0 10px 35px rgba(0,0,0,.08);
+    margin-bottom:24px;
+}
+
+.card-title{
+    font-size:20px;
+    font-weight:700;
+    margin-bottom:6px;
+}
+
+.card-subtitle{
+    color:var(--text-secondary);
+    font-size:13px;
+    margin-bottom:24px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:18px;
+}
+
+.form-group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+}
+
+.form-group.full{
+    grid-column:span 2;
+}
+
+label{
+    font-size:13px;
+    font-weight:600;
+    color:var(--text-secondary);
+}
+
+input,
+select,
+textarea{
+    border:1px solid var(--border-color);
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:14px;
+    outline:none;
+    background:var(--bg-input);
+    color:var(--text-main);
+    transition:.15s;
+}
+
+textarea{
+    resize:vertical;
+    min-height:120px;
+}
+
+input:focus,
+select:focus,
+textarea:focus{
+    border-color:var(--accent-blue);
+    box-shadow:0 0 0 4px rgba(0,113,227,.1);
+}
+
+.upload-box{
+    border:2px dashed var(--border-color);
+    border-radius:18px;
+    padding:28px;
+    text-align:center;
+    background:var(--bg-input-hover);
+    transition:.15s;
+    cursor:pointer;
+}
+
+.upload-box:hover{
+    border-color:var(--accent-blue);
+    background:rgba(0,113,227,.08);
+}
+.upload-box.dragover {
+    border-color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.15);
+    transform: scale(1.05);
+}
+.upload-box i{
+    font-size:34px;
+    color:var(--accent-blue);
+    margin-bottom:12px;
+}
+
+.upload-box h3{
+    font-size:15px;
+    margin-bottom:6px;
+}
+
+.upload-box p{
+    color:var(--text-secondary);
+    font-size:12px;
+}
+
+.hidden-input{
+    display:none;
+}
+
+.toggle-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:16px 0;
+    border-bottom:1px solid var(--border-color);
+}
+
+.toggle-row:last-child{
+    border-bottom:none;
+}
+
+.toggle-info h4{
+    font-size:14px;
+    margin-bottom:4px;
+}
+
+.toggle-info p{
+    color:var(--text-secondary);
+    font-size:12px;
+}
+
+.switch{
+    position:relative;
+    width:52px;
+    height:30px;
+}
+
+.switch input{
+    opacity:0;
+    width:0;
+    height:0;
+}
+
+.slider{
+    position:absolute;
+    cursor:pointer;
+    inset:0;
+    background-color:var(--border-color);
+    transition:.2s;
+    border-radius:999px;
+}
+
+.slider:before{
+    position:absolute;
+    content:"";
+    height:24px;
+    width:24px;
+    left:3px;
+    top:3px;
+    background-color:white;
+    transition:.2s;
+    border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,.15);
+}
+
+.switch input:checked + .slider{
+    background-color:var(--accent-blue);
+}
+
+.switch input:checked + .slider:before{
+    transform:translateX(22px);
+}
+
+/* --- NEW PLUGIN CLASSES --- */
+.search-bar {
+    width: 100%;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.search-bar i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.search-bar input {
+    width: 100%;
+    padding-left: 38px;
+}
+
+.plugin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.plugin-list::-webkit-scrollbar { width: 6px; }
+.plugin-list::-webkit-scrollbar-thumb{
+    background:var(--border-color);
+    border-radius:10px;
+}
+
+.plugin-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 16px;
+    border:1px solid var(--border-color);
+    border-radius:14px;
+    background:var(--bg-input-hover);
+    transition:.2s;
+}
+
+.plugin-item:hover{
+    border-color:var(--text-secondary);
+    background:var(--bg-card);
+}
+
+.plugin-info .badge{
+    font-size:10px;
+    background:var(--border-color);
+    padding:3px 6px;
+    border-radius:6px;
+    color:var(--text-secondary);
+}
+.plugin-item.disabled {
+    opacity: 0.6;
+}
+
+.plugin-info h4 {
+    font-size: 15px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/*.plugin-info .badge {
+    font-size: 10px;
+    background: #e5e5e7;
+    padding: 3px 6px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+}*/
+
+.plugin-info p {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.plugin-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+/* -------------------------- */
+
+.sidebar-card{
+    position:sticky;
+    top:30px;
+}
+
+.server-preview{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:24px;
+}
+
+.server-icon{
+    width:80px;
+    height:80px;
+    border-radius:18px;
+    background:linear-gradient(135deg,#0071e3,#5ac8fa);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:white;
+    font-size:32px;
+    overflow:hidden;
+}
+
+.server-icon img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+
+.preview-meta h2{
+    font-size:20px;
+    margin-bottom:4px;
+}
+
+.preview-meta p{
+    color:var(--text-secondary);
+    font-size:13px;
+}
+
+.stats{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:14px;
+    margin-top:20px;
+}
+
+.stat-box{
+    background:var(--bg-soft);
+    border-radius:16px;
+    padding:16px;
+}
+
+.stat-box h3{
+    font-size:12px;
+    color:var(--text-secondary);
+    margin-bottom:6px;
+}
+
+.stat-box p{
+    font-size:20px;
+    font-weight:700;
+}
+
+.footer-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:14px;
+    margin-top:30px;
+}
+
+.tag{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    border-radius:999px;
+    background:rgba(0,113,227,.08);
+    color:var(--accent-blue);
+    font-size:12px;
+    font-weight:600;
+    margin-top:10px;
+}
+
+@media (max-width:1000px){
+
+    .layout{
+        grid-template-columns:1fr;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .form-group.full{
+        grid-column:span 1;
+    }
+
+}
+.pending-delete{
+    opacity:.45;
+    border-color:#ff3b30;
+    background:rgba(255,59,48,.05);
+}
+
+.pending-delete .plugin-info{
+    text-decoration:line-through;
+}
+
+input,
+select,
+textarea,
+button{
+    color:var(--text-main);
+}
+</style>
+
+</style>
+</head>
+<body>
+
+<div class="page">
+
+    <div class="topbar">
+
+        <div class="title-group">
+            <h1>Create Minecraft Server</h1>
+            <p>Deploy and configure a new Minecraft server instance.</p>
+        </div>
+
+        <button class="btn"
+        onclick="window.location.href='/'">
+
+            <i class="fa-solid fa-arrow-left"></i>
+            Back to Dashboard
+
+        </button>
+
+    </div>
+
+    <div class="layout">
+
+        <div>
+
+            <!-- GENERAL -->
+
+            <div class="card">
+
+                <div class="card-title">
+                    General Information
+                </div>
+
+                <div class="card-subtitle">
+                    Basic information about your Minecraft server.
+                </div>
+
+                <div class="grid">
+
+                    <div class="form-group full">
+                        <label>Server Name</label>
+
+                        <input
+                        id="serverName"
+                        type="text"
+                        placeholder="Example SMP">
+                    </div>
+
+                    <div class="form-group full">
+                        <label>Server Description / MOTD</label>
+
+                        <textarea
+                        id="serverDescription"
+                        placeholder="A fun survival server with custom plugins and events."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Server Type</label>
+
+                        <select id="serverType">
+
+                            <option>PaperMC</option>
+                            <option>Vanilla</option>
+                            <option>Forge</option>
+                            <option>Fabric</option>
+                            <option>Purpur</option>
+                            <option>NeoForge</option>
+                            <option>Spigot</option>
+
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>Minecraft Version</label>
+
+                        <select id="mcVersion">
+                            <option>Loading versions...</option>
+                        </select>
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>Allocated RAM (GB)</label>
+
+                        <input
+                        id="serverRam"
+                        type="number"
+                        value="3"
+                        min="1"
+                        max="16">
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>Max Players</label>
+
+                        <input
+                        id="maxPlayers"
+                        type="number"
+                        value="20"
+                        min="1"
+                        max="500">
+
+                    </div>
+                    <div class="form-group full">
+                        <label>Seed</label>
+
+                        <input
+                        id="serverSeed"
+                        type="text"
+                        placeholder="Seed for server, if empty will auto generate. if you upload world this area will be ignored">
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- UPLOADS -->
+
+            <div class="card">
+
+                <div class="card-title">
+                    Uploads
+                </div>
+
+                <div class="card-subtitle">
+                    Upload custom assets, worlds, and preconfigured servers.
+                </div>
+
+                <div class="grid">
+
+                    <div class="form-group">
+
+                        <label>Server Icon</label>
+
+                        <label class="upload-box">
+
+                            <input
+                            id="iconUpload"
+                            type="file"
+                            class="hidden-input"
+                            accept="image/png,image/jpeg">
+
+                            <i class="fa-solid fa-image"></i>
+
+                            <h3>Upload Icon</h3>
+
+                            <p>
+                                PNG or JPG • Recommended 64×64
+                            </p>
+
+                        </label>
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>World Upload (.zip)</label>
+
+                        <label class="upload-box">
+
+                            <input
+                            id="worldUpload"
+                            type="file"
+                            class="hidden-input"
+                            accept=".zip">
+
+                            <i class="fa-solid fa-globe"></i>
+
+                            <h3>Upload World</h3>
+
+                            <p>
+                                Upload a zipped Minecraft world
+                            </p>
+
+                        </label>
+
+                    </div>
+                    <div class="form-group">
+
+                        <label>Server.properties Upload (.properties)</label>
+
+                        <label class="upload-box">
+
+                            <input
+                            id="serverPropertiesUpload"
+                            type="file"
+                            class="hidden-input"
+                            accept=".properties">
+
+                            <i class="fa-solid fa-box-archive"></i>
+
+                            <h3>Upload Existing Server.properties file</h3>
+
+                            <p>
+                                Import a Server configuration file
+                            </p>
+
+                        </label>
+
+                    </div>
+                    <div class="form-group">
+
+                        <label>Plugins/Mods/Datapacks Upload (/mods or /plugins folder)</label>
+
+                        <label class="upload-box">
+
+                            <input
+                                id="pluginsMods"
+                                type="file"
+                                class="hidden-input"
+                                webkitdirectory
+                                directory
+                                multiple>
+
+                            <i class="fa-solid fa-box-archive"></i>
+
+                            <h3>Upload Plugins, Datapacks And Mods</h3>
+
+                            <p>
+                                Import Plugins folder, Datapack folder or mods folder
+                            </p>
+
+                        </label>
+
+                    </div>
+                    <div class="form-group full">
+
+                        <label>server.properties Content</label>
+                                        
+                        <textarea
+                        id="serverPropertiesContent"
+                        placeholder="motd=My Server&#10;max-players=20&#10;online-mode=true"
+                        style="min-height:220px;font-family:monospace;"></textarea>
+                                        
+                    </div>
+                    <div class="form-group full">
+
+                        <label>Full Server Upload (.zip)</label>
+
+                        <label class="upload-box">
+
+                            <input
+                            id="serverZipUpload"
+                            type="file"
+                            class="hidden-input"
+                            accept=".zip">
+
+                            <i class="fa-solid fa-box-archive"></i>
+
+                            <h3>Upload Existing Server</h3>
+
+                            <p>
+                                Import a fully configured Minecraft server
+                            </p>
+
+                        </label>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SETTINGS -->
+
+            <div class="card">
+
+                <div class="card-title">
+                    Server Settings
+                </div>
+
+                <div class="card-subtitle">
+                    Configure gameplay and performance settings.
+                </div>
+
+                <div class="toggle-row">
+
+                    <div class="toggle-info">
+
+                        <h4>Online Mode</h4>
+
+                        <p>
+                            Require authenticated Minecraft accounts.
+                        </p>
+
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                        id="onlineMode"
+                        type="checkbox"
+                        checked>
+
+                        <span class="slider"></span>
+
+                    </label>
+
+                </div>
+
+                <div class="toggle-row">
+
+                    <div class="toggle-info">
+
+                        <h4>PVP Enabled</h4>
+
+                        <p>
+                            Allow players to damage each other.
+                        </p>
+
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                        id="pvpEnabled"
+                        type="checkbox"
+                        checked>
+
+                        <span class="slider"></span>
+
+                    </label>
+
+                </div>
+
+                <div class="toggle-row">
+
+                    <div class="toggle-info">
+
+                        <h4>Enable Command Blocks</h4>
+
+                        <p>
+                            Allow use of command blocks.
+                        </p>
+
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                        id="commandBlocks"
+                        type="checkbox">
+
+                        <span class="slider"></span>
+
+                    </label>
+
+                </div>
+
+                <div class="toggle-row">
+
+                    <div class="toggle-info">
+
+                        <h4>Auto Start</h4>
+
+                        <p>
+                            Automatically start when someone joins.
+                        </p>
+
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                        id="autoStart"
+                        type="checkbox"
+                        checked>
+
+                        <span class="slider"></span>
+
+                    </label>
+
+                </div>
+                    <div class="toggle-row">
+
+                    <div class="toggle-info">
+
+                        <h4>Run Server 24/7</h4>
+
+                        <p>
+                            Always run this server (requires Admin rank).
+                        </p>
+
+                    </div>
+
+                    <label class="switch">
+
+                        <input
+                        id="247"
+                        type="checkbox"
+                        checked>
+
+                        <span class="slider"></span>
+
+                    </label>
+
+                </div>
+
+            </div>
+
+            <!-- FOOTER BUTTONS -->
+
+            <div class="footer-actions">
+
+                <button class="btn"
+                onclick="window.location.href='/'">
+
+                    Cancel
+
+                </button>
+
+                <button
+                id="createServerBtn"
+                class="btn btn-primary">
+
+                    <i class="fa-solid fa-server"></i>
+                    Create Server
+
+                </button>
+
+            </div>
+
+        </div>
+
+        <!-- SIDEBAR -->
+
+        <div>
+
+            <div class="card sidebar-card">
+
+                <div class="server-preview">
+
+                    <div
+                    class="server-icon"
+                    id="preview-icon">
+
+                        <i class="fa-solid fa-cube"></i>
+
+                    </div>
+
+                    <div class="preview-meta">
+
+                        <h2 id="preview-name">
+                            Example SMP
+                        </h2>
+
+                        <p id="preview-meta">
+                            PaperMC • 1.21.1
+                        </p>
+
+                        <div class="tag">
+
+                            <i class="fa-solid fa-circle"></i>
+
+                            Ready to Deploy
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="stats">
+
+                    <div class="stat-box">
+
+                        <h3>RAM</h3>
+
+                        <p id="stat-ram">
+                            6 GB
+                        </p>
+
+                    </div>
+
+                    <div class="stat-box">
+
+                        <h3>Software</h3>
+
+                        <p id="stat-software">
+                            PaperMC
+                        </p>
+
+                    </div>
+
+                    <div class="stat-box">
+
+                        <h3>Players</h3>
+
+                        <p id="stat-players">
+                            20
+                        </p>
+
+                    </div>
+
+                    <div class="stat-box">
+
+                        <h3>Version</h3>
+
+                        <p id="stat-version">
+                            1.21.1
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const API = window.location.origin;
+
+// ----------------------
+// ELEMENT REFERENCES
+// ----------------------
+
+const serverNameInput =
+document.getElementById("serverName");
+
+const serverPropertiesContent =
+document.getElementById("serverPropertiesContent");
+
+const descriptionInput =
+document.getElementById("serverDescription");
+
+const serverTypeInput =
+document.getElementById("serverType");
+
+const versionInput =
+document.getElementById("mcVersion");
+
+const ramInput =
+document.getElementById("serverRam");
+
+const maxPlayersInput =
+document.getElementById("maxPlayers");
+
+const iconInput =
+document.getElementById("iconUpload");
+
+const worldInput =
+document.getElementById("worldUpload");
+
+const serverZipInput =
+document.getElementById("serverZipUpload");
+
+const pluginsMods =
+document.getElementById("pluginsMods");
+
+const createBtn =
+document.getElementById("createServerBtn");
+
+const previewIcon =
+document.getElementById("preview-icon");
+
+const previewName =
+document.getElementById("preview-name");
+
+const previewMeta =
+document.getElementById("preview-meta");
+
+const statRam =
+document.getElementById("stat-ram");
+
+const statSoftware =
+document.getElementById("stat-software");
+
+const statPlayers =
+document.getElementById("stat-players");
+
+const statVersion =
+document.getElementById("stat-version");
+
+const onlineMode =
+document.getElementById("onlineMode");
+
+const pvpEnabled =
+document.getElementById("pvpEnabled");
+
+const commandBlocks =
+document.getElementById("commandBlocks");
+
+const autoStart =
+document.getElementById("autoStart");
+
+const twenty47 =
+document.getElementById("247");
+
+// ----------------------
+// LIVE PREVIEW
+// ----------------------
+
+function updatePreview(){
+
+    previewName.textContent =
+        serverNameInput.value || "Example SMP";
+
+    previewMeta.textContent =
+        `${serverTypeInput.value} • ${versionInput.value}`;
+
+    statRam.textContent =
+        `${ramInput.value} GB`;
+
+    statSoftware.textContent =
+        serverTypeInput.value;
+
+    statPlayers.textContent =
+        maxPlayersInput.value;
+
+    statVersion.textContent =
+        versionInput.value;
+
+}
+
+[
+    serverNameInput,
+    descriptionInput,
+    serverTypeInput,
+    versionInput,
+    ramInput,
+    maxPlayersInput
+].forEach(el=>{
+
+    el.addEventListener("input",updatePreview);
+    el.addEventListener("change",updatePreview);
+
+});
+
+// ----------------------
+// ICON PREVIEW
+// ----------------------
+
+iconInput.addEventListener("change",e=>{
+
+    const file = e.target.files[0];
+
+    if(!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = ev=>{
+
+        previewIcon.innerHTML =
+            `<img src="${ev.target.result}">`;
+
+    };
+
+    reader.readAsDataURL(file);
+
+});
+
+// ----------------------
+// LOAD VERSIONS
+// ----------------------
+
+async function loadMinecraftVersions(){
+
+    try{
+
+        const response =
+        await fetch(
+            "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+        );
+
+        const data =
+        await response.json();
+
+        versionInput.innerHTML = "";
+
+        data.versions.forEach(version=>{
+            if(version.type === 'snapshot') return
+            console.log("VERSION:" ,version, "IS SNAPSHOT:", version.type === 'snapshot')
+
+            const option =
+            document.createElement("option");
+
+            option.value =
+            version.id;
+
+            option.textContent =
+            `${version.id} (${version.type})`;
+
+            versionInput.appendChild(option);
+
+        });
+
+        updatePreview();
+
+    }catch(err){
+
+        console.error(err);
+
+        versionInput.innerHTML =
+            "<option>Failed to load versions</option>";
+
+    }
+
+}
+
+loadMinecraftVersions();
+
+// ----------------------
+// CREATE SERVER
+// ----------------------
+
+createBtn.addEventListener("click",async()=>{
+
+    try{
+
+        createBtn.disabled = true;
+
+        createBtn.innerHTML =
+        `<i class="fa-solid fa-spinner fa-spin"></i>
+        Creating...`;
+
+        const formData = new FormData();
+
+        formData.append(
+            "name",
+            serverNameInput.value
+        );
+
+        formData.append(
+            "desc",
+            descriptionInput.value
+        );
+
+        formData.append(
+            "type",
+            serverTypeInput.value
+        );
+
+        formData.append(
+            "version",
+            versionInput.value
+        );
+
+        formData.append(
+            "ram",
+            ramInput.value
+        );
+
+        formData.append(
+            "maxPlayers",
+            maxPlayersInput.value
+        );
+
+        formData.append(
+            "online_mode",
+            onlineMode.checked
+        );
+
+        formData.append(
+            "pvp",
+            pvpEnabled.checked
+        );
+
+        formData.append(
+            "command_blocks",
+            commandBlocks.checked
+        );
+
+        formData.append(
+            "auto_start",
+            autoStart.checked
+        );
+
+        formData.append(
+            "twenty47",
+            twenty47.checked
+        );
+
+        if(iconInput.files[0]){
+
+            formData.append(
+                "icon",
+                iconInput.files[0]
+            );
+
+        }
+
+        if(worldInput.files[0]){
+
+            formData.append(
+                "world_zip",
+                worldInput.files[0]
+            );
+
+        }
+
+        if(serverZipInput.files[0]){
+
+            formData.append(
+                "server_zip",
+                serverZipInput.files[0]
+            );
+
+        }
+
+        for(const file of pluginsMods.files){
+            console.log(file)
+            formData.append(
+                "plugins_mods",
+                file,
+                file.webkitRelativePath
+            );
+        }
+
+        formData.append(
+            "server_properties",
+            serverPropertiesContent.value
+        );
+
+        const response =
+        await fetch(
+            API + "/create",
+            {
+                method:"POST",
+                body:formData
+            }
+        );
+
+        const result =
+        await response.json();
+
+        if(!response.ok){
+
+            throw new Error(
+                result.error || "Failed to create server"
+            );
+
+        }
+
+        alert("Server created successfully!");
+
+        console.log(result);
+
+        window.location.href = "/";
+
+    }catch(err){
+
+        console.error(err);
+
+        alert(err.message);
+
+    }finally{
+
+        createBtn.disabled = false;
+
+        createBtn.innerHTML =
+        `<i class="fa-solid fa-server"></i>
+        Create Server`;
+
+    }
+
+});
+
+updatePreview();
+// ----------------------
+// DRAG & DROP UPLOADS
+// ----------------------
+
+document.querySelectorAll(".upload-box").forEach(box => {
+    const input = box.querySelector("input[type='file']");
+    if (!input) return;
+
+    // highlight on drag over
+    box.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        box.classList.add("dragover");
+    });
+
+    box.addEventListener("dragleave", () => {
+        box.classList.remove("dragover");
+    });
+
+    // handle drop
+    box.addEventListener("drop", (e) => {
+        e.preventDefault();
+        box.classList.remove("dragover");
+
+        const files = e.dataTransfer.files;
+        if (!files.length) return;
+
+        // assign files to input
+        input.files = files;
+
+        // trigger change events (important for your icon preview + logic)
+        input.dispatchEvent(new Event("change"));
+
+        // optional UI feedback (filename)
+        const title = box.querySelector("h3");
+        if (title && files[0]) {
+            title.textContent = files[0].name;
+        }
+    });
+});
+</script>
+
+</body>
+</html>

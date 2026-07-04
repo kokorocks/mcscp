@@ -1,0 +1,18 @@
+[Logger] Logging to logs/2026-06-26_20-41-37.log
+[AUTOSTART] Listening on 25566
+2026-06-26 20:41:37,211 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.22.7.210:5000
+2026-06-26 20:41:37,213 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-06-26 20:41:38,333 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:38] "GET /servers HTTP/1.1" 200 -
+Offline OFFLINE 1
+2026-06-26 20:41:38,359 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:38] "GET /logs/1 HTTP/1.1" 200 -
+NODE ID IS THIS VALUE RIGHT HERE SO YA I GOT NOTHIN ELSE TO SAY main
+SERVER  1 NOW PROCESS <Popen: returncode: None args: ['java', '-Xms1G', '-Xmx1G', '-jar', 'server....>
+2026-06-26 20:41:40,487 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:40] "GET /servers HTTP/1.1" 200 -
+Offline . server  1 online
+2026-06-26 20:41:40,520 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:40] "GET /logs/1 HTTP/1.1" 200 -
+2026-06-26 20:41:42,654 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:42] "GET /servers HTTP/1.1" 200 -
+Offline . server  1 online
+2026-06-26 20:41:42,682 [INFO] werkzeug: 127.0.0.1 - - [26/Jun/2026 20:41:42] "GET /logs/1 HTTP/1.1" 200 -
