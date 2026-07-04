@@ -42,6 +42,10 @@ def check_latest_release(repo, token=None):
     if token:
         headers["Authorization"] = f"token {token}"
     r = requests.get(api, headers=headers, timeout=20)
+    # handle 404 (no releases) gracefully
+    if r.status_code == 404:
+        logger.info(f"No releases found for {repo} (404)")
+        return None
     r.raise_for_status()
     return r.json()
 
@@ -108,6 +112,8 @@ def check_and_prepare_update(repo, asset_pattern=None, token=None, rollout_perce
     update in `updates/<tag>/` and returns an object describing what to do next.
     """
     release = check_latest_release(repo, token=token)
+    if not release:
+        return {"status": "no_release", "repo": repo}
     tag = release.get('tag_name') or release.get('name')
     if not tag:
         tag = str(int(time.time()))

@@ -118,6 +118,8 @@ def update_status():
         return jsonify({"error": "repo required (owner/repo)"}), 400
     try:
         info = updater.check_and_prepare_update(repo)
+        if isinstance(info, dict) and info.get('status') == 'no_release':
+            return jsonify({"ok": True, "update": info, "message": "no releases found"}), 200
         return jsonify({"ok": True, "update": info})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -153,6 +155,9 @@ def trigger_update():
                 update_state['last'] = info
                 update_state['progress'] = 30
                 update_state['message'] = 'Checked latest release'
+                if isinstance(info, dict) and info.get('status') == 'no_release':
+                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
+                    return
                 if info.get('status') == 'downloaded':
                     update_state['progress'] = 60
                     update_state['message'] = 'Applying update'
@@ -200,7 +205,7 @@ node_tasks = {}
 
 # Start an optional hourly scheduler (controlled via env AUTO_UPDATE=true)
 def _start_update_scheduler():
-    auto = os.environ.get('AUTO_UPDATE', 'true').lower() == 'true'
+    auto = os.environ.get('AUTO_UPDATE', 'false').lower() == 'true'
     if not auto:
         return
 
@@ -229,6 +234,10 @@ def _start_update_scheduler():
                 update_state['last'] = info
                 update_state['progress'] = 30
                 update_state['message'] = 'Latest release checked'
+                if isinstance(info, dict) and info.get('status') == 'no_release':
+                    update_state.update({'status': 'no_release', 'message': 'No release available', 'progress': 0})
+                    time.sleep(interval)
+                    continue
                 if info.get('status') == 'downloaded':
                     # apply with a clear UPDATING flag during apply and ensure it is reset
                     try:
@@ -1512,10 +1521,11 @@ def update():
 
 @app.route('/updating')
 def updating():
-    if(UPDATING):
+    # Show updating page if an update is in-progress or if update_state indicates recent activity
+    status = update_state.get('status')
+    if UPDATING or (status and status not in ('idle', None)):
         return open('html/updating.htm').read()
-    else:
-        return redirect(url_for('index'))
+    return redirect(url_for('index'))
 
 
 @app.route('/api/update/state')
