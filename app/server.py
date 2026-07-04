@@ -88,7 +88,12 @@ def maintenance_mode():
         "updating",
     }
 
+    # allow by endpoint name
     if request.endpoint in allowed:
+        return
+
+    # also allow update-related API paths while updating
+    if request.path.startswith('/api/update') or request.path == '/api/update/state':
         return
 
     # API requests
@@ -135,49 +140,44 @@ def trigger_update():
         return jsonify({"error": "repo required (owner/repo)"}), 400
 
     def _run():
-        global UPDATING
-        try:
-            UPDATING = True
-            update_state.update({
-                'status': 'running',
-                'progress': 0,
-                'message': 'Starting update',
-            })
-            info = updater.check_and_prepare_update(repo, asset_pattern=pattern, rollout_percent=rollout)
-            update_state['last'] = info
-            update_state['progress'] = 30
-            update_state['message'] = 'Checked latest release'
-            if info.get('status') == 'downloaded':
-                update_state['progress'] = 60
-                update_state['message'] = 'Preparing to apply update'
-                try:
+        # start background updater thread and return immediately
+        def _runner():
+            global UPDATING
+            try:
+                update_state.update({
+                    'status': 'running',
+                    'progress': 0,
+                    'message': 'Starting update',
+                })
+                info = updater.check_and_prepare_update(repo, asset_pattern=pattern, rollout_percent=rollout)
+                update_state['last'] = info
+                update_state['progress'] = 30
+                update_state['message'] = 'Checked latest release'
+                if info.get('status') == 'downloaded':
+                    update_state['progress'] = 60
                     update_state['message'] = 'Applying update'
-                    apply_result = updater.apply_update(info['path'], exclude=exclude)
-                    update_state['details'] = apply_result
-                    update_state['status'] = apply_result.get('status')
-                    update_state['progress'] = 95 if apply_result.get('status') == 'applied' else 0
-                    if apply_result.get('status') == 'applied':
-                        update_state['message'] = 'Update applied; restarting'
-                        # best-effort restart of the current process to pick up new code
-                        try:
-                            import sys
-                            os.execv(sys.executable, [sys.executable] + sys.argv)
-                        except Exception:
-                            pass
-                except Exception as e:
-                    update_state['status'] = 'error'
-                    update_state['details'] = str(e)
-                    update_state['message'] = 'Failed to apply update: ' + str(e)
-        except Exception as e:
-            update_state['status'] = 'error'
-            update_state['details'] = str(e)
-            update_state['message'] = str(e)
-        finally:
-            UPDATING = False
-            update_state['progress'] = 100 if update_state.get('status') == 'applied' else update_state.get('progress', 0)
+                    UPDATING = True
+                    try:
+                        apply_result = updater.apply_update(info['path'], exclude=exclude)
+                        update_state['details'] = apply_result
+                        update_state['status'] = apply_result.get('status')
+                        update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
+                        if apply_result.get('status') == 'applied':
+                            update_state['message'] = 'Update applied; restarting'
+                            try:
+                                import sys
+                                os.execv(sys.executable, [sys.executable] + sys.argv)
+                            except Exception:
+                                pass
+                    finally:
+                        UPDATING = False
+            except Exception as e:
+                update_state['status'] = 'error'
+                update_state['details'] = str(e)
+                update_state['message'] = str(e)
 
-    threading.Thread(target=_run, daemon=True).start()
-    return jsonify({"ok": True, "status": "started"}), 202
+        threading.Thread(target=_runner, daemon=True).start()
+        return jsonify({"ok": True, "status": "started"}), 202
 
 def require_owner():
 
@@ -1493,7 +1493,20 @@ def servers():
 def update():
     global UPDATING
     require_owner()
-    UPDATING = True
+    # trigger a background update using configured repo
+    repo = os.environ.get('GITHUB_REPO') or 'kokorocks/mcscp'
+    # reuse trigger_update path but don't require JSON body; start thread directly
+    update_state.update({'status':'checking','message':'Manual check started','progress':5})
+    def _do_check():
+        try:
+            info = updater.check_and_prepare_update(repo)
+            update_state['last'] = info
+            update_state['progress'] = 30
+            update_state['message'] = 'Checked latest release'
+        except Exception as e:
+            update_state.update({'status':'error','message':str(e),'details':str(e)})
+
+    threading.Thread(target=_do_check, daemon=True).start()
     return redirect('/updating')
     
 
