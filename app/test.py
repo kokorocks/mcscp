@@ -9,6 +9,7 @@ servers = {}          # loaded config
 listeners = {}        # active listener threads
 running = set()       # started servers (sid tracking)
 
+print("i edited this file for testing auto updates")
 
 # ----------------------------
 # YOUR EXISTING FUNCTION
