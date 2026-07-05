@@ -28,8 +28,11 @@ idle_since = {}
 listener_sockets = {}
 listener_stop_flags = {}
 server_started = {}
-UPDATE=True
-UPDATING = False#True
+# UPDATE is now driven by the background update-checker below: it starts
+# False and only flips to True once a check confirms a newer commit is
+# actually available upstream. The frontend reads this via /servers.
+UPDATE = False
+UPDATING = False
 import updater
 
 update_state = {"status": "idle", "last": None, "details": None}
@@ -37,8 +40,9 @@ update_state = {"status": "idle", "last": None, "details": None}
 # -------------------------
 # GIT-BASED UPDATER CONFIG
 # -------------------------
-# The updater now pulls from a real git repo instead of downloading GitHub
-# release zips. Configure via env vars, with sane fallbacks.
+# The updater pulls a zipball of the tracked branch straight from GitHub
+# (no git binary required) and copies files into place, skipping anything
+# in UPDATE_PRESERVE. Configure via env vars, with sane fallbacks.
 GIT_REPO_URL = os.environ.get('GIT_REPO_URL') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
 GIT_BRANCH = os.environ.get('GIT_BRANCH', 'main')
 # The app lives inside the repo it updates, so the repo root is this file's directory.
@@ -50,12 +54,17 @@ UPDATE_WATCH_FILES = [f.strip() for f in os.environ.get('UPDATE_WATCH_FILES', 'v
 
 # Live data that must survive every update untouched, even if the incoming
 # commit happens to track a file with the same name (e.g. a template
-# server-config.json committed to the repo). Backed up before the update and
-# restored afterward, overwriting whatever git just checked out for these paths.
+# server-config.json committed to the repo). Left completely alone on disk,
+# no matter what the zip contains.
 UPDATE_PRESERVE = [p.strip() for p in os.environ.get(
     'UPDATE_PRESERVE',
-    'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes,uploads,temp'
+    'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes,uploads,temp,.update_state.json,backups'
 ).split(',') if p.strip()]
+
+# How often (seconds) the background notifier checks GitHub for a new commit
+# and updates the UPDATE flag. This is check-only -- it never applies
+# anything by itself.
+UPDATE_CHECK_INTERVAL = int(os.environ.get('UPDATE_CHECK_INTERVAL', '300'))
 
 
 def _to_git_url(repo):
@@ -161,7 +170,7 @@ def maintenance_mode():
 @app.route('/api/update/check')
 @login_required
 def update_status():
-    """Check the tracked git branch for new commits. Does not apply anything."""
+    """Check the tracked branch for new commits. Does not apply anything."""
     repo = request.args.get('repo') or GIT_REPO_URL
     try:
         info = updater.check_for_git_update(
@@ -190,7 +199,7 @@ def trigger_update():
 
     def _run():
         def _runner():
-            global UPDATING
+            global UPDATING, UPDATE
             try:
                 update_state.update({
                     'status': 'running',
@@ -206,9 +215,11 @@ def trigger_update():
 
                 if info['status'] == 'up_to_date':
                     update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                    UPDATE = False
                     return
                 if info['status'] == 'cloned':
                     update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                    UPDATE = False
                     return
 
                 # status == 'update_available'
@@ -232,6 +243,7 @@ def trigger_update():
                     update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
                     if apply_result.get('status') == 'applied':
                         update_state['message'] = 'Update applied; restarting'
+                        UPDATE = False
                         try:
                             import sys
                             os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -268,7 +280,38 @@ plugins_mods_path=None
 nodes = {}
 node_tasks = {}
 
+
+# -------------------------
+# BACKGROUND UPDATE NOTIFIER (check-only)
+# -------------------------
+# Runs continuously regardless of AUTO_UPDATE. All it does is ask GitHub
+# "is there a newer commit than what's installed?" and flips the global
+# UPDATE flag accordingly, so the frontend can show an "update available"
+# banner. It never downloads or applies anything -- that only happens when
+# an owner hits /update or POST /api/update.
+def _start_update_notifier():
+    def loop():
+        global UPDATE
+        while True:
+            try:
+                if UPDATING:
+                    time.sleep(10)
+                    continue
+                info = _run_update_check()
+                update_state['last'] = info
+                UPDATE = (info.get('status') == 'update_available')
+            except Exception as e:
+                # Network hiccups / rate limits shouldn't crash the app or
+                # falsely announce an update -- just leave UPDATE as-is and
+                # try again next interval.
+                update_state['check_error'] = str(e)
+            time.sleep(UPDATE_CHECK_INTERVAL)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 # Start an optional hourly scheduler (controlled via env AUTO_UPDATE=true)
+# that automatically APPLIES updates, not just checks for them.
 def _start_update_scheduler():
     auto = os.environ.get('AUTO_UPDATE', 'false').lower() == 'true'
     if not auto:
@@ -290,7 +333,7 @@ def _start_update_scheduler():
     def loop():
         while True:
             try:
-                global UPDATING
+                global UPDATING, UPDATE
                 if UPDATING:
                     time.sleep(10)
                     continue
@@ -304,12 +347,16 @@ def _start_update_scheduler():
 
                 if info['status'] == 'up_to_date':
                     update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                    UPDATE = False
                     time.sleep(interval)
                     continue
                 if info['status'] == 'cloned':
                     update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                    UPDATE = False
                     time.sleep(interval)
                     continue
+
+                UPDATE = True
 
                 if info.get('important_change'):
                     update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
@@ -330,6 +377,7 @@ def _start_update_scheduler():
                     update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
                     if res.get('status') == 'applied':
                         update_state['message'] = 'Update applied; restarting'
+                        UPDATE = False
                         try:
                             import sys
                             os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -344,7 +392,9 @@ def _start_update_scheduler():
 
     threading.Thread(target=loop, daemon=True).start()
 
-# attempt to start scheduler now
+# The notifier always runs (check-only, safe by default). Auto-apply only
+# runs if AUTO_UPDATE=true is set.
+_start_update_notifier()
 _start_update_scheduler()
 
 def image_to_blob(image_path, file_type="png"):
@@ -526,28 +576,7 @@ def get_plugins_config(sid, plugin_name):
         content = f.read()
 
     return {"type": f_type, "content": content}
-    
-'''@login_required
-@app.route('/get-plugin-config/<sid>/<plugin_name>')
-def get_plugins_config(sid, plugin_name):
-    yml_file = f"minecraft_server/{sid}/{plugin_name}/config.yml"
-    json_file = f"app/minecraft_server/{sid}/{plugin_name}/config.json"
 
-    print(os.path.exists(yml_file))
-    if os.path.exists(yml_file):
-        return {
-            "type": "yaml",
-            "content": open(yml_file).read()
-        }
-
-    if os.path.exists(json_file):
-        return {
-            "type": "json",
-            "content": open(json_file).read()
-        }
-    #print("CONFIG: ", yml_file)
-
-    return {"error": "Config not found"}, 404'''
 
 def disable_enable_plugins(sid):
 
@@ -978,14 +1007,6 @@ def edit_s(sid):
         # --------------------
         # EDIT SERVER
         # --------------------
-        #if deleted_plugins:
-#
-        #    for plugin in deleted_plugins:
-        #    
-        #        delete_plugin_and_data(
-        #            folder,
-        #            plugin
-        #        )
         create.edit_server(
             sid=sid,
 
@@ -1044,14 +1065,6 @@ def edit_s(sid):
             ),
             deleted_plugins=deleted_plugins,
             plugin_states=plugin_states)
-        '''deleted_plugins = json.loads(
-        request.form.get(
-            "deleted_plugins",
-            "[]"
-        )
-    )'''
-    
-        
 
         return jsonify({
             "success": True
@@ -1144,8 +1157,6 @@ def sign_in():
     print(user)
 
     # User not found
-    #print(user)
-    #print(user['accepted'])
     if not user or not user['accepted']:
         return jsonify({"error": "Invalid credentials or your account has not been accepted"}), 401
 
@@ -1204,10 +1215,6 @@ def delete():
     # 3. Save the updated layout back to the file
     with open('server-config.json', 'w') as file:
         json.dump(SERVERS, file, indent=4)
-        
-
-    #print("Server 4 successfully removed!")
-    
     
     
 @app.route('/kill', methods=['POST'])
@@ -1412,7 +1419,7 @@ def stop_server(sid):
     try:
         proc.stdin.write("save-all\n")
         proc.stdin.flush()
-        time.sleep(2)                                                                                                                                                                    #hi
+        time.sleep(2)
         proc.stdin.write("stop\n")
         proc.stdin.flush()
         proc.wait(timeout=30)
@@ -1556,7 +1563,6 @@ def servers():
             status = "Online"
         else:
             status = "Starting"
-        #print(image_to_blob('minecraft_servers/'+sid+"/server-icon.png"))
         if(not s.get("deleted")):
             data.append({
                 "id": sid,
@@ -1565,18 +1571,16 @@ def servers():
                 "maxPlayers":str(s["max-players"]),
                 "players": currentlyonline(sid),
                 "type": server_types[int(s["type"])-1],
-                "status": status, #"started" if 'Done (' in data and '! For help, type "help"' in data else "Starting" if str(sid) in processes else "Offline",
+                "status": status,
                 "ram": s["ram"],
                 "port": s["port"],
                 "desc": s["desc"],
                 "creator": s["created-by"],
-                #"img": image_to_blob('minecraft_servers/'+sid+"/server-icon.png")
             })
         else:
             data.append({
                 "deleted": True
             })
-        #print(data)
     return jsonify({"servers":data, "update": UPDATE})
 
 @app.route("/update")
@@ -1595,7 +1599,7 @@ def update():
     update_state.update({'status': 'checking', 'message': 'Manual update started', 'progress': 5})
 
     def _do_update():
-        global UPDATING
+        global UPDATING, UPDATE
         try:
             info = updater.check_for_git_update(
                 _to_git_url(repo), LOCAL_REPO_PATH, branch=GIT_BRANCH, watch_files=UPDATE_WATCH_FILES
@@ -1605,9 +1609,11 @@ def update():
 
             if info['status'] == 'up_to_date':
                 update_state.update({'status': 'up_to_date', 'message': 'Already up to date', 'progress': 100})
+                UPDATE = False
                 return
             if info['status'] == 'cloned':
                 update_state.update({'status': 'cloned', 'message': 'Repository cloned fresh', 'progress': 100})
+                UPDATE = False
                 return
 
             if info.get('important_change'):
@@ -1628,6 +1634,7 @@ def update():
                 update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
                 if apply_result.get('status') == 'applied':
                     update_state['message'] = 'Update applied; restarting'
+                    UPDATE = False
                     try:
                         import sys
                         os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -1655,6 +1662,7 @@ def updating():
 def update_state_api():
     # public read-only state for the updating page
     s = update_state.copy()
+    s['update_available'] = UPDATE
     # redact large details
     if 'details' in s and isinstance(s['details'], dict):
         d = s['details'].copy()
@@ -1797,9 +1805,6 @@ def autostart():
         if(s.get('twenty47')):
             print("STARTING 24/7 SERVER: ", sid)
             start_server(sid)
-
-#with app.app_context():
-#    autostart()
 
 if __name__ == "__main__":
     threading.Thread(target=autostart, daemon=True).start()

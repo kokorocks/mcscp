@@ -1,307 +1,266 @@
+"""
+Update engine for MCSCP.
+
+This module is called from app.py via two functions that app.py already
+knows about:
+
+    check_for_git_update(repo_url, local_path, branch, watch_files)
+    apply_git_update(local_path, remote_sha, branch, backup_root, exclude, preserve)
+
+Internally it no longer uses `git` at all -- it downloads the branch as a
+zipball from GitHub (like the second script you pasted) and copies files
+into place itself. That means the host doesn't need git installed and
+works even on locked-down hosting.
+
+State (which commit is currently installed, and which repo/branch that
+came from) is kept in a small json file, `.update_state.json`, inside the
+app's own folder -- NOT in the zip, so it always survives updates.
+"""
+
 import os
-import requests
-import tempfile
-import shutil
-import hashlib
-import zipfile
-import tarfile
+import io
+import json
 import time
-import logging
-from pathlib import Path
+import shutil
+import zipfile
+import requests
 
-logger = logging.getLogger("updater")
-logging.basicConfig(level=logging.INFO)
-
-
-def _sha256_of_file(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
+STATE_FILENAME = ".update_state.json"
 
 
-def _extract_archive(archive_path, dest_dir):
-    dest_dir = Path(dest_dir)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    if archive_path.endswith(".zip"):
-        with zipfile.ZipFile(archive_path, "r") as z:
-            z.extractall(dest_dir)
-    elif archive_path.endswith(('.tar.gz', '.tgz', '.tar')):
-        with tarfile.open(archive_path, 'r:*') as t:
-            t.extractall(dest_dir)
-    else:
-        # If it's not a recognized archive, just copy it
-        shutil.copy(archive_path, dest_dir / Path(archive_path).name)
+# -------------------------
+# helpers
+# -------------------------
+def _parse_owner_repo(repo_url_or_slug):
+    """Accepts 'owner/repo', a full https url, or a git@ url -> (owner, repo)."""
+    s = (repo_url_or_slug or "").strip()
+    if s.endswith(".git"):
+        s = s[:-4]
+    if s.startswith("git@"):
+        # git@github.com:owner/repo
+        s = s.split(":", 1)[-1]
+    elif s.startswith("http://") or s.startswith("https://"):
+        s = s.split("github.com/", 1)[-1]
+    parts = s.strip("/").split("/")
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    raise ValueError(f"Could not parse owner/repo from '{repo_url_or_slug}'")
 
 
-def check_latest_release(repo, token=None):
-    """Return latest release dict from GitHub API for `owner/repo`."""
-    api = f"https://api.github.com/repos/{repo}/releases/latest"
-    #kokorocks/mcscp
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if token:
-        headers["Authorization"] = f"token {token}"
-    r = requests.get(api, headers=headers, timeout=20)
-    # handle 404 (no releases) gracefully
-    if r.status_code == 404:
-        logger.info(f"No releases found for {repo} (404)")
-        return None
-    r.raise_for_status()
-    return r.json()
+def _load_state(local_path):
+    state_file = os.path.join(local_path, STATE_FILENAME)
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
 
 
-def download_asset(url, dest_path, token=None):
-    headers = {}
-    if token:
-        headers["Authorization"] = f"token {token}"
-    with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-        r.raise_for_status()
-        with open(dest_path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-    return dest_path
-
-
-def find_asset_for_release(release, pattern=None):
-    assets = release.get('assets', [])
-    if not assets:
-        # fallback to the release archive URLs (zipball/tarball) if no assets uploaded
-        zip_url = release.get('zipball_url')
-        tar_url = release.get('tarball_url')
-        if zip_url:
-            return {"name": f"{release.get('tag_name') or 'release'}-zipball.zip", "browser_download_url": zip_url}
-        if tar_url:
-            return {"name": f"{release.get('tag_name') or 'release'}-tarball.tar.gz", "browser_download_url": tar_url}
-        return None
-    if pattern:
-        for a in assets:
-            if pattern in a.get('name', ''):
-                return a
-    # prefer zip or tar.gz
-    for a in assets:
-        n = a.get('name', '')
-        if n.endswith('.zip') or n.endswith('.tar.gz') or n.endswith('.tgz'):
-            return a
-    return assets[0]
-
-
-def verify_with_checksum(asset, release, download_path, token=None):
-    # Try to find a checksum asset (name + .sha256 or checksums.txt)
-    assets = release.get('assets', [])
-    checksum_text = None
-    for a in assets:
-        if a.get('name', '').endswith('.sha256') or 'checksums' in a.get('name', ''):
-            tmp = tempfile.mktemp()
-            download_asset(a.get('browser_download_url'), tmp, token=token)
-            with open(tmp, 'r', encoding='utf-8', errors='ignore') as f:
-                checksum_text = f.read()
-            try:
-                os.remove(tmp)
-            except Exception:
-                pass
-            break
-
-    if checksum_text:
-        # crude parsing: look for filename or just hex
-        h = _sha256_of_file(download_path)
-        if h in checksum_text:
-            return True, h
-        return False, h
-    # no checksum available
-    return None, _sha256_of_file(download_path)
-
-
-def check_and_prepare_update(repo, asset_pattern=None, token=None, rollout_percent=100):
-    """Check GitHub latest release and download + extract into `updates/<tag>`.
-
-    This function does NOT forcibly replace in-use files. It prepares an extracted
-    update in `updates/<tag>/` and returns an object describing what to do next.
-    """
-    release = check_latest_release(repo, token=token)
-    if not release:
-        return {"status": "no_release", "repo": repo}
-    tag = release.get('tag_name') or release.get('name')
-    if not tag:
-        tag = str(int(time.time()))
-
-    asset = find_asset_for_release(release, pattern=asset_pattern)
-    if not asset:
-        return {"status": "no_asset", "tag": tag, "repo": repo}
-
-    updates_dir = Path('updates')
-    dest_dir = updates_dir / tag
-    if dest_dir.exists():
-        return {"status": "already_downloaded", "tag": tag, "path": str(dest_dir)}
-
-    tmpfile = tempfile.mktemp(suffix='-' + asset.get('name', 'download'))
-    download_asset(asset.get('browser_download_url'), tmpfile, token=token)
-    verify_result, sha = verify_with_checksum(asset, release, tmpfile, token=token)
-
-    _extract_archive(tmpfile, dest_dir)
+def _save_state(local_path, state):
+    state_file = os.path.join(local_path, STATE_FILENAME)
     try:
-        os.remove(tmpfile)
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
     except Exception:
         pass
 
+
+def _github_headers():
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _get_latest_commit_sha(owner, repo, branch):
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits/{branch}"
+    resp = requests.get(url, headers=_github_headers(), timeout=15)
+    resp.raise_for_status()
+    return resp.json()["sha"]
+
+
+def _get_changed_files(owner, repo, base_sha, head_sha):
+    """List of filenames changed between base_sha and head_sha, or None if unknown."""
+    if not base_sha:
+        return None
+    url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base_sha}...{head_sha}"
+    resp = requests.get(url, headers=_github_headers(), timeout=15)
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    return [f["filename"] for f in data.get("files", [])]
+
+
+def _matches_rule(relative_path, rule):
+    rule = rule.replace("\\", "/").strip()
+    if not rule:
+        return False
+    path = relative_path.replace("\\", "/")
+    if rule.endswith("/"):
+        return path == rule.rstrip("/") or path.startswith(rule)
+    return path == rule or path.endswith(f"/{rule}")
+
+
+def _should_skip(relative_path, preserve, exclude):
+    """True if this path must NOT be touched (live data) or was explicitly excluded."""
+    for rule in (preserve or []):
+        if _matches_rule(relative_path, rule):
+            return True
+    for rule in (exclude or []):
+        if _matches_rule(relative_path, rule):
+            return True
+    return False
+
+
+# -------------------------
+# public API (same names/signatures app.py already calls)
+# -------------------------
+def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
+    """
+    Look up the latest commit on GitHub for `branch` and compare it against
+    what's currently installed. Read-only -- never downloads or modifies
+    anything. Returns a dict describing the result.
+    """
+    watch_files = watch_files or []
+    owner, repo = _parse_owner_repo(repo_url)
+
+    state = _load_state(local_path)
+    local_sha = state.get("sha")
+
+    remote_sha = _get_latest_commit_sha(owner, repo, branch)
+
+    # Remember which repo/branch we're tracking so apply_git_update can be
+    # called later with no arguments and still know what to fetch.
+    state["repo_url"] = repo_url
+    state["branch"] = branch
+    _save_state(local_path, state)
+
+    if not local_sha:
+        return {
+            "status": "cloned",
+            "remote_sha": remote_sha,
+            "local_sha": None,
+            "important_change": False,
+            "matched_watch_files": [],
+        }
+
+    if local_sha == remote_sha:
+        return {
+            "status": "up_to_date",
+            "remote_sha": remote_sha,
+            "local_sha": local_sha,
+            "important_change": False,
+            "matched_watch_files": [],
+        }
+
+    changed = _get_changed_files(owner, repo, local_sha, remote_sha)
+    matched = []
+    if changed:
+        for wf in watch_files:
+            wf_norm = wf.replace("\\", "/").rstrip("/")
+            for cf in changed:
+                if cf == wf_norm or cf.startswith(wf_norm + "/"):
+                    matched.append(cf)
+
     return {
-        "status": "downloaded",
-        "tag": tag,
-        "path": str(dest_dir),
-        "sha256": sha,
-        "checksum_verified": verify_result
+        "status": "update_available",
+        "remote_sha": remote_sha,
+        "local_sha": local_sha,
+        "important_change": bool(matched),
+        "matched_watch_files": matched,
+        "changed_files": changed,
     }
 
 
-# ---------------------------------------------------------------------------
-# Version tracking
-#
-# `check_and_prepare_update` only tells you whether a build has been
-# downloaded/extracted into updates/<tag>. It says nothing about whether that
-# tag has actually been applied (swapped into install_root) yet. These
-# helpers persist a small marker file so the orchestration logic below can
-# tell "extracted" apart from "installed".
-# ---------------------------------------------------------------------------
-
-def _current_version_path(install_root):
-    return Path(install_root) / '.current_version'
-
-
-def get_current_version(install_root=None):
-    install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
-    marker = _current_version_path(install_root)
-    if marker.exists():
-        return marker.read_text(encoding='utf-8').strip()
-    return None
-
-
-def _set_current_version(install_root, tag):
-    marker = _current_version_path(install_root)
-    marker.write_text(tag, encoding='utf-8')
-
-
-def apply_update(prepared_path, install_root=None, backup_root='backups', exclude=None, tag=None):
-    """Attempt an atomic-ish swap: backup current install, move new files into place.
-
-    install_root defaults to repository root (parent of this file's parent).
-    On success, records `tag` (if provided) as the installed version so callers
-    can avoid re-applying the same update on every run.
-    Returns dict with status and backup path on success, or error details on failure.
+def apply_git_update(local_path, remote_sha=None, branch="main", backup_root="backups",
+                      exclude=None, preserve=None, repo_url=None):
     """
-    install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
-    prepared_path = Path(prepared_path)
-    if not prepared_path.exists():
-        raise RuntimeError('Prepared update path does not exist')
-
-    timestamp = time.strftime('%Y%m%d-%H%M%S')
-    backup_dir = Path(backup_root) / f'backup-{timestamp}'
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    # normalize exclude list of relative paths/names
-    exclude = exclude or []
-    exclude_set = set(exclude)
-
-    def is_excluded(path: Path):
-        # path relative to install_root
-        try:
-            rel = path.relative_to(install_root)
-        except Exception:
-            return False
-        parts = (str(rel).replace('\\', '/')).split('/')
-        # check if any prefix or filename in exclude_set matches
-        for i in range(1, len(parts) + 1):
-            if '/'.join(parts[:i]) in exclude_set:
-                return True
-        if parts[0] in exclude_set:
-            return True
-        return False
-
-    try:
-        # copy current install to backup
-        for item in install_root.iterdir():
-            # skip backups and updates folders
-            if item.name in (backup_root, 'updates'):
-                continue
-            if is_excluded(item):
-                continue
-            dest = backup_dir / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
-
-        # copy prepared files into install root (overwriting)
-        for item in prepared_path.iterdir():
-            dest = install_root / item.name
-            if is_excluded(dest):
-                # skip overwriting excluded paths
-                continue
-            if item.is_dir():
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
-
-        if tag:
-            _set_current_version(install_root, tag)
-
-        return {"status": "applied", "backup": str(backup_dir), "tag": tag}
-    except Exception as e:
-        logger.exception('Failed to apply update')
-        return {"status": "error", "error": str(e)}
-
-
-def run_update_cycle(repo, asset_pattern=None, token=None, install_root=None,
-                      backup_root='backups', exclude=None):
-    """Ties check_and_prepare_update + apply_update together, using the
-    on-disk version marker to avoid re-applying a tag that's already live.
-
-    This is the function most callers should use instead of calling
-    check_and_prepare_update / apply_update separately.
+    Downloads the branch's zipball from GitHub and installs every file
+    that isn't in `preserve` (live data, always left alone) or `exclude`
+    (one-off skip list for this run). Anything about to be overwritten is
+    backed up first. Returns a dict describing the result.
     """
-    install_root = Path(install_root) if install_root else Path(__file__).resolve().parents[1]
+    state = _load_state(local_path)
 
-    result = check_and_prepare_update(repo, asset_pattern=asset_pattern, token=token)
+    if repo_url is None:
+        repo_url = state.get("repo_url")
+    if not repo_url:
+        raise ValueError(
+            "apply_git_update: no repo_url on record -- call check_for_git_update first, "
+            "or pass repo_url explicitly."
+        )
 
-    if result["status"] not in ("downloaded", "already_downloaded"):
-        # no_release / no_asset -> nothing to apply
-        return result
+    if branch is None:
+        branch = state.get("branch", "main")
 
-    tag = result["tag"]
-    current = get_current_version(install_root)
+    owner, repo = _parse_owner_repo(repo_url)
 
-    if current == tag:
-        return {"status": "up_to_date", "tag": tag, "path": result["path"]}
+    if not remote_sha:
+        remote_sha = _get_latest_commit_sha(owner, repo, branch)
 
-    apply_result = apply_update(
-        result["path"],
-        install_root=install_root,
-        backup_root=backup_root,
-        exclude=exclude,
-        tag=tag,
-    )
+    zip_url = f"https://github.com/{owner}/{repo}/zipball/{branch}"
+    resp = requests.get(zip_url, stream=True, timeout=60)
+    if resp.status_code != 200:
+        return {"status": "error", "message": f"Failed to download archive (HTTP {resp.status_code})"}
 
-    if apply_result["status"] == "applied":
-        return {"status": "updated", "tag": tag, **apply_result}
+    zip_data = io.BytesIO(resp.content)
 
-    return apply_result
+    installed = []
+    skipped = []
+    backup_dir = os.path.join(local_path, backup_root, f"{remote_sha[:12]}-{int(time.time())}") if backup_root else None
 
+    with zipfile.ZipFile(zip_data) as zf:
+        names = zf.namelist()
+        if not names:
+            return {"status": "error", "message": "Downloaded archive was empty"}
+        root_dir_in_zip = names[0].split("/")[0]
 
-if __name__ == "__main__":
-    import argparse
+        for info in zf.infolist():
+            if info.filename == f"{root_dir_in_zip}/" or not info.filename.strip():
+                continue
 
-    parser = argparse.ArgumentParser(description="Check for and apply the latest GitHub release update.")
-    parser.add_argument("repo", help="owner/repo to check on GitHub")
-    parser.add_argument("--pattern", default=None, help="substring to match in asset filename")
-    parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN"), help="GitHub token (or set GITHUB_TOKEN env var)")
-    parser.add_argument("--install-root", default=None, help="root directory to apply updates into")
-    args = parser.parse_args()
+            relative_path = info.filename[len(root_dir_in_zip) + 1:]
+            if not relative_path:
+                continue
 
-    outcome = run_update_cycle(
-        args.repo,
-        asset_pattern=args.pattern,
-        token=args.token,
-        install_root=args.install_root,
-    )
-    print(outcome)
+            if _should_skip(relative_path, preserve, exclude):
+                skipped.append(relative_path)
+                continue
+
+            target_path = os.path.join(local_path, relative_path)
+
+            if info.is_dir():
+                os.makedirs(target_path, exist_ok=True)
+                continue
+
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+            if backup_dir and os.path.exists(target_path):
+                backup_target = os.path.join(backup_dir, relative_path)
+                os.makedirs(os.path.dirname(backup_target), exist_ok=True)
+                try:
+                    shutil.copy2(target_path, backup_target)
+                except Exception:
+                    pass
+
+            with zf.open(info) as src, open(target_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+            installed.append(relative_path)
+
+    state["sha"] = remote_sha
+    state["repo_url"] = repo_url
+    state["branch"] = branch
+    state["last_updated"] = time.time()
+    _save_state(local_path, state)
+
+    return {
+        "status": "applied",
+        "remote_sha": remote_sha,
+        "installed_count": len(installed),
+        "skipped_count": len(skipped),
+        "backup": backup_dir,
+    }
