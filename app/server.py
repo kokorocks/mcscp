@@ -1606,6 +1606,14 @@ if __name__ == "__main__":
     ).start()
 
     start_autostart_listeners()
-    
-    debug=False #True
-    app.run(host="0.0.0.0", port=5000, debug=debug)
+
+    debug=False  # True
+    port = int(os.environ.get("PORT", "5000"))
+    try:
+        app.run(host="0.0.0.0", port=port, debug=debug)
+    except OSError as exc:
+        if "Address already in use" in str(exc) and port == 5000:
+            print("[SERVER] Port 5000 is busy; trying 5001")
+            app.run(host="0.0.0.0", port=5001, debug=debug)
+        else:
+            raise
