@@ -97,8 +97,12 @@ def _save_state(local_path, state):
 
 
 def _github_headers():
-    headers = {"Accept": "application/vnd.github+json"}
-    token = os.environ.get("GITHUB_TOKEN")
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "mcservermanager-updater",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
@@ -410,6 +414,8 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
             "local_sha": local_sha,
             "important_change": False,
             "matched_watch_files": [],
+            "sha_match": True,
+            "state_file": os.path.join(local_path, STATE_FILENAME),
         }
 
     changed = _get_changed_files(owner, repo, local_sha, remote_sha)
@@ -428,6 +434,8 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
         "important_change": bool(matched),
         "matched_watch_files": matched,
         "changed_files": changed,
+        "sha_match": False,
+        "state_file": os.path.join(local_path, STATE_FILENAME),
     }
 
 
