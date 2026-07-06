@@ -23,9 +23,27 @@ import json
 import time
 import shutil
 import zipfile
+import threading
+from pathlib import Path
 import requests
 
 STATE_FILENAME = ".update_state.json"
+
+UPDATE = False
+UPDATING = False
+update_state = {"status": "idle", "last": None, "details": None}
+
+# Git-based updater configuration
+GIT_REPO_URL = os.environ.get('GIT_REPO_URL') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
+GIT_BRANCH = os.environ.get('GIT_BRANCH', 'main')
+# Install into the repository root so extracted files land where the app actually runs.
+LOCAL_REPO_PATH = Path(__file__).resolve().parents[1]
+UPDATE_WATCH_FILES = [f.strip() for f in os.environ.get('UPDATE_WATCH_FILES', 'version.txt').split(',') if f.strip()]
+UPDATE_PRESERVE = [p.strip() for p in os.environ.get(
+    'UPDATE_PRESERVE',
+    'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes,uploads,temp,.update_state.json,backups'
+).split(',') if p.strip()]
+UPDATE_CHECK_INTERVAL = int(os.environ.get('UPDATE_CHECK_INTERVAL', '300'))
 
 
 # -------------------------
@@ -48,6 +66,7 @@ def _parse_owner_repo(repo_url_or_slug):
 
 
 def _load_state(local_path):
+    local_path = Path(local_path).resolve()
     state_file = os.path.join(local_path, STATE_FILENAME)
     if os.path.exists(state_file):
         try:
@@ -55,12 +74,22 @@ def _load_state(local_path):
                 return json.load(f)
         except Exception:
             return {}
+
+    legacy_state_file = os.path.join(local_path, "app", STATE_FILENAME)
+    if os.path.exists(legacy_state_file):
+        try:
+            with open(legacy_state_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
     return {}
 
 
 def _save_state(local_path, state):
+    local_path = Path(local_path).resolve()
     state_file = os.path.join(local_path, STATE_FILENAME)
     try:
+        os.makedirs(local_path, exist_ok=True)
         with open(state_file, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
     except Exception:
@@ -113,6 +142,233 @@ def _should_skip(relative_path, preserve, exclude):
         if _matches_rule(relative_path, rule):
             return True
     return False
+
+
+def _to_git_url(repo):
+    """Accept either a full git URL or a GitHub 'owner/repo' shorthand."""
+    if repo.startswith(('http://', 'https://', 'git@')):
+        return repo
+    return f"https://github.com/{repo}.git"
+
+
+def _set_update_state(**kwargs):
+    update_state.update(kwargs)
+
+
+def _restart_app():
+    import sys
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback=None,
+                    initial_message='Checking for updates', mark_updating=True):
+    """Run the full check/apply lifecycle and keep update_state in sync."""
+    global UPDATE, UPDATING
+
+    repo = repo or GIT_REPO_URL
+    branch = branch or GIT_BRANCH
+    extra_exclude = extra_exclude or []
+
+    _set_update_state(status='running', progress=0, message=initial_message)
+    info = check_for_git_update(
+        _to_git_url(repo),
+        LOCAL_REPO_PATH,
+        branch=branch,
+        watch_files=UPDATE_WATCH_FILES,
+    )
+    update_state['last'] = info
+    update_state['progress'] = 30
+    update_state['message'] = 'Checked latest commit'
+
+    if info['status'] == 'up_to_date':
+        _set_update_state(status='up_to_date', message='Already up to date', progress=100)
+        UPDATE = False
+        return info
+
+    if info.get('important_change'):
+        update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
+
+    update_state['progress'] = 60
+    update_state['message'] = 'Installing files' if info['status'] == 'cloned' else 'Applying update'
+
+    if mark_updating:
+        UPDATING = True
+    try:
+        apply_result = apply_git_update(
+            LOCAL_REPO_PATH,
+            remote_sha=info.get('remote_sha'),
+            branch=branch,
+            backup_root='backups',
+            exclude=extra_exclude,
+            preserve=UPDATE_PRESERVE,
+        )
+        update_state['details'] = apply_result
+        update_state['status'] = apply_result.get('status')
+        update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
+        if apply_result.get('status') == 'applied':
+            update_state['message'] = 'Update applied; restarting'
+            UPDATE = False
+            if restart_callback is not None:
+                try:
+                    restart_callback()
+                except Exception:
+                    pass
+        return apply_result
+    finally:
+        if mark_updating:
+            UPDATING = False
+
+
+def start_update_job(repo=None, branch=None, extra_exclude=None, restart_callback=None):
+    """Kick off a background update apply job and return a JSON-compatible response."""
+    def _runner():
+        try:
+            run_update_flow(
+                repo=repo,
+                branch=branch,
+                extra_exclude=extra_exclude,
+                restart_callback=restart_callback,
+                initial_message='Checking for updates',
+            )
+        except Exception as exc:
+            update_state['status'] = 'error'
+            update_state['details'] = str(exc)
+            update_state['message'] = str(exc)
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return {"ok": True, "status": "started"}, 202
+
+
+def start_manual_update(repo=None, branch=None, extra_exclude=None, restart_callback=None):
+    """Start a manual update for the web UI and return the redirect target."""
+    repo = repo or GIT_REPO_URL
+    if not repo:
+        _set_update_state(status='error', message='No repository configured for update', progress=0)
+        return '/updating'
+
+    if UPDATING:
+        _set_update_state(status='running', message='Update already in progress', progress=update_state.get('progress', 0))
+        return '/updating'
+
+    _set_update_state(status='checking', message='Manual update started', progress=5)
+
+    def _runner():
+        try:
+            run_update_flow(
+                repo=repo,
+                branch=branch,
+                extra_exclude=extra_exclude,
+                restart_callback=restart_callback,
+                initial_message='Manual update started',
+            )
+        except Exception as exc:
+            update_state.update({'status': 'error', 'message': str(exc), 'details': str(exc), 'progress': 0})
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return '/updating'
+
+
+def start_update_notifier():
+    """Background check-only notifier that updates UPDATE based on remote state."""
+    def loop():
+        global UPDATE
+        while True:
+            try:
+                if UPDATING:
+                    time.sleep(10)
+                    continue
+                info = check_for_git_update(
+                    _to_git_url(GIT_REPO_URL),
+                    LOCAL_REPO_PATH,
+                    branch=GIT_BRANCH,
+                    watch_files=UPDATE_WATCH_FILES,
+                )
+                update_state['last'] = info
+                UPDATE = (info.get('status') in ('update_available', 'cloned'))
+            except Exception as exc:
+                update_state['check_error'] = str(exc)
+            time.sleep(UPDATE_CHECK_INTERVAL)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
+def start_update_scheduler():
+    """Optionally apply updates automatically when AUTO_UPDATE is enabled."""
+    auto = os.environ.get('AUTO_UPDATE', 'false').lower() == 'true'
+    if not auto:
+        return
+
+    repo = GIT_REPO_URL
+    branch = GIT_BRANCH
+    if not repo:
+        return
+
+    exclude_env = os.environ.get('UPDATE_EXCLUDE', '')
+    extra_exclude = [p.strip() for p in exclude_env.split(',') if p.strip()]
+    try:
+        interval = int(os.environ.get('UPDATE_INTERVAL', '3600'))
+    except Exception:
+        interval = 3600
+
+    def loop():
+        while True:
+            try:
+                global UPDATE, UPDATING
+                if UPDATING:
+                    time.sleep(10)
+                    continue
+
+                _set_update_state(status='checking', progress=5, message='Checking for updates')
+                info = check_for_git_update(
+                    _to_git_url(repo),
+                    LOCAL_REPO_PATH,
+                    branch=branch,
+                    watch_files=UPDATE_WATCH_FILES,
+                )
+                update_state['last'] = info
+                update_state['progress'] = 30
+                update_state['message'] = 'Checked latest commit'
+
+                if info['status'] == 'up_to_date':
+                    _set_update_state(status='up_to_date', message='Already up to date', progress=100)
+                    UPDATE = False
+                    time.sleep(interval)
+                    continue
+
+                UPDATE = True
+                if info.get('important_change'):
+                    update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
+
+                try:
+                    UPDATING = True
+                    msg = 'Installing files' if info['status'] == 'cloned' else 'Applying update'
+                    _set_update_state(status='applying', progress=60, message=msg)
+                    res = apply_git_update(
+                        LOCAL_REPO_PATH,
+                        remote_sha=info.get('remote_sha'),
+                        branch=branch,
+                        backup_root='backups',
+                        exclude=extra_exclude,
+                        preserve=UPDATE_PRESERVE,
+                    )
+                    update_state['details'] = res
+                    update_state['status'] = res.get('status')
+                    update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
+                    if res.get('status') == 'applied':
+                        update_state['message'] = 'Update applied; restarting'
+                        UPDATE = False
+                        try:
+                            _restart_app()
+                        except Exception:
+                            pass
+                finally:
+                    UPDATING = False
+            except Exception as exc:
+                update_state['status'] = 'error'
+                update_state['details'] = str(exc)
+            time.sleep(interval)
+
+    threading.Thread(target=loop, daemon=True).start()
 
 
 # -------------------------

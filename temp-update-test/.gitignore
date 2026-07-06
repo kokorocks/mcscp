@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtualenv / environment
+venv/
+.env
+
+# Logs and runtime files
+logs/
+*.log
+
+# Generated server data and uploads
+minecraft_servers/
+server-imgs/
+servers/
+temp/
+nodes/
+uploads/
+cache/
+backups/
+updates/
+
+# Local config (do not commit secrets or local state)
+server-config.json
+users.json
+node-config.json
+
+# IDE / Editor
+.vscode/
+*.swp
+
+# Database
+*.sqlite3

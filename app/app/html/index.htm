@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        alert('successfull update')
+(function () {
+    const theme = localStorage.getItem("mcscp-dashboard-theme");
+
+    switch (theme) {
+        case "theme-dark":
+            document.documentElement.setAttribute("data-theme", "dark");
+            break;
+
+        case "theme-oled":
+            document.documentElement.setAttribute("data-theme", "oled");
+            break;
+
+        case "theme-light":
+            document.documentElement.setAttribute("data-theme", "light");
+            break;
+
+        case "theme-system":
+        default:
+            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                document.documentElement.setAttribute("data-theme", "dark");
+            } else {
+                document.documentElement.setAttribute("data-theme", "light");
+            }
+    }
+})();
+</script>
+    <style>
+:root,
+[data-theme="light"] {
+    --bg-sidebar: #f5f5f7;
+    --bg-main: #ffffff;
+    --bg-card: #ffffff;
+    --bg-hover: #f9f9f9;
+    --bg-input: #f5f5f7;
+    --bg-input-focus: #ffffff;
+    --bg-secondary: #fbfbfb;
+    --status-red-bg: #ef4444;
+    --status-orange-bg: #f0a028;
+    --status-green-bg: #29ab12;
+
+    --border-color: #e5e5e7;
+
+    --text-main: #1d1d1f;
+    --text-secondary: #86868b;
+    --text-sidebar: #3a3a3c;
+}
+
+[data-theme="dark"] {
+    --bg-sidebar: #1c1c1e;
+    --bg-main: #121212;
+    --bg-card: #1c1c1e;
+    --bg-hover: #2a2a2d;
+    --bg-input: #242426;
+    --bg-input-focus: #2c2c2e;
+    --bg-secondary: #1a1a1c;
+    --status-red-bg: #ef4444;
+    --status-orange-bg: #f0a028;
+    --status-green-bg: #29ab12;
+    --border-color: #3a3a3c;
+
+    --text-main: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-sidebar: #f5f5f7;
+}
+
+[data-theme="oled"] {
+    --bg-sidebar: #000;
+    --bg-main: #000;
+    --bg-card: #000;
+    --bg-hover: #111;
+    --bg-input: #111;
+    --bg-input-focus: #181818;
+    --bg-secondary: #080808;
+    --status-red-bg: #ef4444;
+    --status-orange-bg: #f0a028;
+    --status-green-bg: #29ab12;
+    --border-color: #222326;
+
+    --text-main: #fff;
+    --text-secondary: #888;
+    --text-sidebar: #fff;
+}
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            color: var(--text-main);
+            background-color: var(--bg-main);
+        }
+
+        /* --- LEFT SIDEBAR --- */
+        .sidebar {
+            width: 220px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 12px 8px;
+            user-select: none;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+            padding-left: 8px;
+            margin-bottom: 24px;
+        }
+
+
+
+        .sidebar-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            padding-left: 8px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #3a3a3c;
+            cursor: pointer;
+            margin-bottom: 2px;
+        }
+
+        .sidebar-item:hover {
+            background-color: rgba(0, 0, 0, 0.04);
+        }
+
+        .sidebar-item.active {
+            background-color: rgba(0, 0, 0, 0.08);
+            color: var(--text-main);
+        }
+
+        .sidebar-item i {
+            width: 16px;
+            text-align: center;
+            color: var(--accent-blue);
+        }
+
+        /* --- MAIN CONTENT AREA --- */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            height: 52px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            user-select: none;
+        }
+
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .view-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .btn-action {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.1s;
+        }
+
+        .btn-action:hover {
+            background-color: #f5f5f7;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-blue-hover);
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-container i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .search-input {
+            width: 200px;
+            padding: 6px 10px 6px 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 13px;
+            outline: none;
+            background-color: #f5f5f7;
+        }
+
+        .search-input:focus {
+            background-color: #ffffff;
+            border-color: var(--accent-blue);
+        }
+
+        /* --- TABLE LAYOUT --- */
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .server-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .server-table th {
+            position: sticky;
+            top: 0;
+            background-color: #ffffff;
+            padding: 10px 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+            user-select: none;
+        }
+
+        .server-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #f5f5f7;
+            white-space: nowrap;
+        }
+
+        .server-table tbody tr {
+            cursor: pointer;
+        }
+
+        .server-table tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .server-table tbody tr.selected {
+            background-color: var(--accent-blue) !important;
+            color: white !important;
+        }
+
+        .server-table tbody tr.selected td,
+        .server-table tbody tr.selected .status-badge {
+            color: white !important;
+        }
+        .server-table tbody tr.selected .status-badge {
+            background-color: rgba(255, 255, 255, 0.2) !important;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-online { background-color: var(--status-green-bg); color: var(--status-green-text); }
+        .status-offline { background-color: var(--status-red-bg); color: var(--status-red-text); }
+        .status-starting { background-color: var(--status-orange-bg); color: var(--status-orange-text); }
+
+        /* --- RIGHT INSPECTOR PANEL --- */
+        .inspector {
+            width: 320px;
+            border-left: 1px solid var(--border-color);
+            background-color: #ffffff;
+            display: none; /* Controlled by JS */
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .inspector-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .inspector-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .inspector-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .inspector-actions {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #fbfbfb;
+        }
+
+        .inspector-actions .btn-action {
+            flex: 1;
+            justify-content: center;
+        }
+
+        .inspector-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .inspector-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .meta-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .meta-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .meta-label {
+            color: var(--text-secondary);
+        }
+
+        .meta-value {
+            font-weight: 500;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Real-time terminal/console look inside inspector */
+        .console-preview {
+            background-color: #1e1e1e;
+            color: #f1f1f1;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            padding: 10px;
+            border-radius: 6px;
+            height: 120px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        /* --- MODAL DIALOG --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal {
+            background-color: white;
+            border-radius: 12px;
+            width: 400px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .end {
+            color: red;
+        }
+        .a {
+          text-decoration: none;
+        }
+
+dialog{
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+
+    background: rgba(255,255,255,0.92);
+    color: var(--text-main);
+
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+
+    box-shadow:
+        0 10px 35px rgba(0,0,0,0.15),
+        0 2px 10px rgba(0,0,0,0.08);
+
+    width: 380px;
+    padding: 22px;
+
+    text-align: left;
+
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    overflow: hidden;
+}
+
+dialog::backdrop{
+    background: rgba(0,0,0,0.22);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+dialog p{
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+dialog .dialog-title{
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-main);
+}
+
+dialog .dialog-buttons{
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+#console-dialog {
+    width: 90vw;
+    height: 85vh;
+    max-width: none;
+}
+
+#fullscreen-console-view {
+    height: calc(85vh - 140px);
+
+    background: #0c0c0c;
+    color: #f1f1f1;
+
+    border-radius: 8px;
+
+    padding: 12px;
+
+    overflow-y: auto;
+
+    white-space: pre-wrap;
+
+    font-family: Consolas, monospace;
+}
+
+#console-input,
+#fullscreen-console-input {
+    outline: none;
+}.log-line {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.timestamp {
+    color: #777777;
+}
+
+.thread {
+    color: #55aaff;
+}
+
+.info {
+    color: #55ff55;
+    font-weight: bold;
+}
+
+.warn {
+    color: #ffaa00;
+    font-weight: bold;
+}
+
+.error {
+    color: #ff5555;
+    font-weight: bold;
+}
+
+.debug {
+    color: #aa55ff;
+    font-weight: bold;
+}
+
+.player {
+    color: #55ffff;
+    font-weight: bold;
+}
+
+.command {
+    color: #ffff55;
+}
+
+.stacktrace {
+    color: #ff7777;
+}
+
+/* New syntax highlighting pieces */
+.message {
+    color: #dddddd; /* Base text color for the log body */
+}
+
+.number {
+    color: #ff79c6; /* Pink color for numbers/IDs/IPs */
+}
+
+.coord {
+    color: #ffb86c; /* Orange color for X, Y, Z coordinates */
+}
+.sidebar-item {
+    color: var(--text-sidebar);
+}
+
+.sidebar-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.sidebar-item.active {
+    background-color: var(--bg-hover);
+}
+
+.btn-action:hover {
+    background-color: var(--bg-hover);
+}
+
+.search-input {
+    background-color: var(--bg-input);
+    color: var(--text-main);
+}
+
+.search-input:focus {
+    background-color: var(--bg-input-focus);
+}
+
+.server-table th {
+    background-color: var(--bg-card);
+}
+
+.server-table td {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.server-table tbody tr:hover {
+    background-color: var(--bg-hover);
+}
+
+.inspector,
+.modal {
+    background-color: var(--bg-card);
+}
+
+.inspector-actions {
+    background-color: var(--bg-secondary);
+}
+
+dialog {
+    background: var(--bg-card);
+}
+#console-input,
+#fullscreen-console-input {
+    background-color: var(--bg-input);
+    color: var(--text-main);
+
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+
+    outline: none;
+}
+
+#console-input::placeholder,
+#fullscreen-console-input::placeholder {
+    color: var(--text-secondary);
+}
+
+#console-input:focus,
+#fullscreen-console-input:focus {
+    background-color: var(--bg-input-focus);
+    border-color: var(--accent-blue);
+}button {
+    color: var(--text-main);
+    background-color: var(--bg-card);
+}.btn-action {
+    background-color: var(--bg-card);
+    color: var(--text-main);
+
+    border: 1px solid var(--border-color);
+
+    padding: 6px 12px;
+    border-radius: 6px;
+
+    font-size: 13px;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}input,
+select,
+textarea,
+button {
+    color: var(--text-main);
+}
+    </style>
+</head>
+<body>
+<dialog id="console-dialog">
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:12px;
+    ">
+        <div class="dialog-title">
+            Live Console
+        </div>
+
+        <button
+            class="btn-action"
+            onclick="document.getElementById('console-dialog').close()"
+        >
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <div id="fullscreen-console-view"></div>
+
+    <div style="
+        display:flex;
+        gap:8px;
+        margin-top:10px;
+    ">
+        <input
+            id="fullscreen-console-input"
+            type="text"
+            placeholder="Type a command..."
+            style="
+                flex:1;
+                padding:8px;
+                border:1px solid var(--border-color);
+                border-radius:6px;
+            "
+        >
+
+        <button
+            class="btn-action btn-primary"
+            id="fullscreen-send"
+        >
+            Send
+        </button>
+    </div>
+</dialog>
+    <div class="sidebar">
+        <h2>mcscp</h2><br><hr><br>
+        
+        <div class="sidebar-section-title">Browser</div>
+        <ul class="sidebar-menu">
+            <li class="sidebar-item active"><i class="fa-solid fa-server"></i> Servers</li>
+            <a class="a" href="owners" data-require-owner="true"><li class="sidebar-item"><i class="fa-solid fa-user-gear"></i> Owner</li></a>
+            <a class="a" href="nodes" data-require-owner="true"><li class="sidebar-item"><i class="fa-solid fa-network-wired" onclick='alert("comming soon maybe i dunno, why u askin?")'></i> Nodes / Hosts</li></a>
+        </ul>
+
+        <div class="sidebar-section-title">Actions</div>
+        <ul class="sidebar-menu">
+            <a class="a" href="create-server"><li class="sidebar-item" id="btn-open-modal"><i class="fa-solid fa-plus"></i> Create Server</li></a>
+            <a class="a" href="main-logs" data-require-admin="true"><li class="sidebar-item"><i class="fa-solid fa-clock-rotate-left"></i> Global Logs</li></a>
+            <a class="a" href="account-settings"><li class="sidebar-item"><i class="fa-solid fa-gear" id="settings"></i> Settings</li></a>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <div class="view-title" id="table-count">Servers (0 selected of 0)</div>
+            </div>
+            <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" class="search-input" id="search-bar" placeholder="Search servers...">
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="server-table">
+                <thead>
+                    <tr>
+                        <th>Server Name</th>
+                        <th>Version</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Players</th>
+                        <th>Memory</th>
+                        <th>Port</th>
+                    </tr>
+                </thead>
+                <tbody id="server-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="inspector" id="inspector-panel">
+    <div class="inspector-header">
+    
+        <div style="display:flex; align-items:center; gap:12px;">
+        
+            <img 
+                id="inspect-icon"
+                src="server-icon/1"
+                style="width:48px; height:48px; border-radius:8px;"
+            >
+        
+            <div>
+            <div style="flex:1;">
+                
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:space-between;
+                    gap:10px;
+                ">
+                
+                    <div class="inspector-title" id="inspect-name">
+                        Survival Server
+                    </div>
+                
+                    <a href="/edit" class="edit-btn" id="edit">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </a>
+
+                    <a href="/files" class="edit-btn" id="fs">
+                        <i class="fa-solid fa-folder"></i>
+                    </a>
+                
+                </div>
+            
+            </div>
+                <div class="inspector-subtitle" id="inspect-type-ver">Paper | 1.20.4 </div>
+            </div>
+        
+        </div>
+    
+    </div>
+
+        <div class="inspector-actions">
+            <button class="btn-action" id="action-toggle-power"><i class="fa-solid fa-power-off"></i> <span id="power-text">Start</span></button>
+            <button class="btn-action" id="action-restart"><i class="fa-solid fa-arrow-rotate-right"></i> Restart</button>
+        </div>
+
+        <div class="inspector-section">
+            <div class="inspector-section-title">Performance & Network</div>
+            <div class="meta-group">
+                <div class="meta-item"><span class="meta-label">Status</span><span class="meta-value" id="inspect-status">-</span></div>
+                <div class="meta-item"><span class="meta-label">Players</span><span class="meta-value" id="inspect-players">-</span></div>
+                <div class="meta-item"><span class="meta-label">Port Allocation</span><span class="meta-value" id="inspect-port">-</span></div>
+                <div class="meta-item"><span class="meta-label">Max RAM Allocation</span><span class="meta-value" id="inspect-ram">-</span></div>
+            </div>
+        </div>
+
+<div class="inspector-section" data-creator-only="true">
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:12px;
+    ">
+        <div class="inspector-section-title">
+            Live Console Stream
+        </div>
+
+        <button class="btn-action" id="fullscreen-console">
+            <i class="fa-solid fa-expand"></i>
+        </button>
+    </div>
+
+    <div class="console-preview" id="inspect-console">
+        [INFO] Initializing server instance...
+    </div>
+
+    <div style="
+        display:flex;
+        gap:8px;
+        margin-top:10px;
+    ">
+        <input
+            id="console-input"
+            type="text"
+            placeholder="Type a command or message..."
+            style="
+                flex:1;
+                padding:8px;
+                border:1px solid var(--border-color);
+                border-radius:6px;
+            "
+        >
+
+        <button
+            class="btn-action btn-primary"
+            id="send-console"
+        >
+            Send
+        </button>
+    </div>
+</div>
+        <div class="inspector-actions" data-creator-only="true">
+            <button class="btn-action end" id="action-delete" command="show-modal" commandfor="delete"><i class="fa-solid fa-trash"></i> <span id="power-text">Delete</span></button>
+            <button class="btn-action end" id="action-kill" command="show-modal" commandfor="kill"><i class="fa-solid fa-x"></i> Kill</button>
+        </div>
+<dialog id="delete">
+    <div class="dialog-title">Delete Server</div>
+
+    <p>
+        Are you sure you want to completely delete this server?
+        This action cannot be undone.
+    </p>
+
+    <div class="dialog-buttons">
+        <button commandfor="delete" command="close" class="btn-action">
+            Cancel
+        </button>
+
+        <button class="btn-action end"  commandfor="delete" command="close" id="delete">
+            Delete
+        </button>
+    </div>
+</dialog>
+
+<dialog id="kill">
+    <div class="dialog-title">Kill Process</div>
+
+    <p>
+        Are you sure you want to forcibly kill the server process?
+        This may cause corruption or data loss.
+    </p>
+
+    <div class="dialog-buttons">
+        <button commandfor="kill" command="close" class="btn-action">
+            Cancel
+        </button>
+
+        <button class="btn-action end" commandfor="kill" command="close" id="kill">
+            Kill
+        </button>
+    </div>
+</dialog>
+    </div>
+
+    <script>
+
+const API = window.location.origin;
+
+let stopping = []
+let servers = [];
+//let update = false
+let selectedServerId = null;
+// --------------------
+// ELEMENT REFERENCES
+// --------------------
+const settings = document.getElementById('settings')
+const tableBody = document.getElementById('server-table-body');
+const inspectorPanel = document.getElementById('inspector-panel');
+const searchBar = document.getElementById('search-bar');
+const tableCountText = document.getElementById('table-count');
+
+const inspectIcon = document.getElementById('inspect-icon')
+const inspectName = document.getElementById('inspect-name');
+const inspectTypeVer = document.getElementById('inspect-type-ver');
+const inspectStatus = document.getElementById('inspect-status');
+const inspectPlayers = document.getElementById('inspect-players');
+const inspectPort = document.getElementById('inspect-port');
+const inspectRam = document.getElementById('inspect-ram');
+const inspectConsole = document.getElementById('inspect-console');
+
+const powerBtn = document.getElementById('action-toggle-power');
+const restartBtn = document.getElementById('action-restart');
+const deleteBtn = document.getElementById('delete')
+const killBtn = document.getElementById('kill')
+const fullscreenBtn = document.getElementById("fullscreen-console");
+const consoleDialog = document.getElementById("console-dialog");
+
+const fullscreenConsole =
+    document.getElementById("fullscreen-console-view");
+
+const consoleInput =
+    document.getElementById("console-input");
+
+const sendConsole =
+    document.getElementById("send-console");
+
+const fullscreenInput =
+    document.getElementById("fullscreen-console-input");
+
+const fullscreenSend =
+    document.getElementById("fullscreen-send");
+
+
+// --------------------
+// LOAD SERVERS FROM BACKEND
+// --------------------
+async function loadServers() {
+    const res = await fetch(API + "/servers");
+
+    const data = await res.json();
+
+    servers = Array.isArray(data.servers) ? data.servers : [];
+
+    renderTable(searchBar.value);
+}
+
+async function updatefunc() {
+    const res = await fetch(API + "/servers");
+    return await res.json().update;
+}
+
+
+
+// --------------------
+// START SERVER
+// --------------------
+async function startServer(id) {
+    await fetch(API + "/start", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+    stopping = stopping.filter(item => item !== id)
+    await loadServers();
+    selectServer(id);
+}
+
+async function killServer(id) {
+    await fetch(API + "/kill", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+    await loadServers();
+    selectServer(id);
+}
+
+async function deleteServer(id) {
+    await fetch(API + "/delete", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+    await loadServers();
+    selectServer(id);
+}
+
+// --------------------
+// STOP SERVER
+// --------------------
+async function stopServer(id) {
+    await fetch(API + "/stop", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id})
+    });
+    stopping.push(id)
+    const server = servers.find(s => s.id === id);
+
+    if (server) {
+        server.status = "Stopping";
+    }
+
+    renderTable(searchBar.value);
+    console.log(id)
+    await loadServers();
+    selectServer(id);
+}
+
+// --------------------
+// LIVE LOG STREAM
+// --------------------
+async function updateLogs(id) {
+    if (!id) return;
+    const res = await fetch(`${API}/logs/${id}`);
+    const data = await res.text();
+    //console.log(data)
+inspectConsole.innerHTML = data
+    .split("\n")
+    .map(highlightLine)
+    .join("");
+
+if (consoleDialog.open) {
+    fullscreenConsole.innerHTML = data
+        .split("\n")
+        .map(highlightLine)
+        .join("");
+
+    //fullscreenConsole.scrollTop =
+      //  fullscreenConsole.scrollHeight;
+}
+}
+
+fullscreenBtn.onclick = () => {
+    fullscreenConsole.innerHTML =
+        inspectConsole.innerHTML;
+
+    consoleDialog.showModal();
+
+    fullscreenConsole.scrollTop =
+        fullscreenConsole.scrollHeight;
+};
+async function sendConsoleCommand(command) {
+    if (!selectedServerId) return;
+
+    if (!command.trim()) return;
+
+    await sendCommand(
+        selectedServerId,
+        command
+    );
+}sendConsole.onclick = async () => {
+    const cmd = consoleInput.value;
+
+    await sendConsoleCommand(cmd);
+
+    consoleInput.value = "";
+};
+
+fullscreenSend.onclick = async () => {
+    const cmd = fullscreenInput.value;
+
+    await sendConsoleCommand(cmd);
+
+    fullscreenInput.value = "";
+};consoleInput.addEventListener("keydown", async e => {
+    if (e.key === "Enter") {
+        e.preventDefault();
+
+        await sendConsoleCommand(
+            consoleInput.value
+        );
+
+        consoleInput.value = "";
+    }
+});
+
+fullscreenInput.addEventListener("keydown", async e => {
+    if (e.key === "Enter") {
+        e.preventDefault();
+
+        await sendConsoleCommand(
+            fullscreenInput.value
+        );
+
+        fullscreenInput.value = "";
+    }
+});
+// --------------------
+// PATCH selectServer()
+// --------------------
+function selectServer(id) {
+    selectedServerId = id;
+    document.getElementById('edit').href='edit?sid='+id
+    document.getElementById('fs').href="files/"+id
+    const server = servers.find(s => s.id === id);
+    if (!server) return;
+
+    const isCreator =
+        window.currentUser.role === "owner" ||
+        window.currentUser.username === server.creator;
+
+    document.querySelectorAll("[data-creator-only]").forEach(el => {
+        if (el.dataset.creatorOnly !== String(isCreator)) {
+            el.style.display = "none";   // or el.remove();
+        } else {
+            el.style.display = "";
+        }
+    });
+
+    // ✅ NOW safe to use server
+    document.getElementById('power-text').innerText =
+        (server.status === "Online" || server.status === "Starting")
+            ? "Stop"
+            : "Start";
+
+    inspectorPanel.style.display = 'flex';
+
+    inspectIcon.src = "server-icon/" + id;
+    inspectName.innerText = server.name;
+    inspectTypeVer.innerText = `${server.type} | ${server.version}`;
+    inspectStatus.innerText = server.status;
+    inspectPlayers.innerText = `${server.players}/${server.maxPlayers}`;
+    inspectPort.innerText = server.port;
+    inspectRam.innerText = server.ram;
+
+    renderTable(searchBar.value);
+}
+
+// --------------------
+// BUTTON HOOKS
+// --------------------
+
+settings.onclick = async () => {
+    logout()
+    alert('loggin out')
+}
+
+powerBtn.onclick = async () => {
+    if (!selectedServerId) return;
+
+    const s = servers.find(x => x.id === selectedServerId);
+    const powerText = document.getElementById('power-text');
+
+    if (s.status !== "Offline")  {
+        await stopServer(s.id);
+        powerText.innerText = "Start";
+    } else {
+        await startServer(s.id);
+        powerText.innerText = "Stop";
+    }
+};
+restartBtn.onclick = async () => {
+    if (!selectedServerId) return;
+    await stopServer(selectedServerId);
+    setTimeout(() => startServer(selectedServerId), 1500);
+};
+
+killBtn.onclick = async () => {
+    if (!selectedServerId) return;
+    await killServer(selectedServerId);
+}
+
+deleteBtn.onclick = async () => {
+    if (!selectedServerId) return;
+    await stopServer(selectedServerId)
+    await deleteServer(selectedServerId);
+}
+
+
+// --------------------
+// TABLE RENDER (patched)
+// --------------------
+function renderTable(filterText = "") {
+    tableBody.innerHTML = "";
+
+    const filtered = servers.filter(s =>
+        !s?.delete &&
+        typeof s?.name === "string" &&
+        s.name.toLowerCase().includes(filterText.toLowerCase())
+    );
+
+    filtered.forEach(server => {
+        const tr = document.createElement('tr');
+
+        let statusClass =
+            server.status === "Online" ? "status-online" :
+            server.status === "Starting" ? "status-starting" :
+            "status-offline";
+            
+
+        tr.innerHTML = `
+            <td>${server.name}</td>
+            <td>${server.version}</td>
+            <td>${server.type}</td>
+            <td><span id="${server.id}status" class="status-badge ${statusClass}">${server.status}</span></td>
+            <td>${server.players}/${server.maxPlayers}</td>
+            <td>${server.ram}</td>
+            <td>${server.port}</td>
+        `;
+
+        if (server.status !== "Offline") {
+            document.getElementById("power-text").innerText = "Stop";
+        }
+
+        tr.onclick = () => selectServer(server.id);
+        tableBody.appendChild(tr);
+    });
+
+    tableCountText.innerText =
+        `Servers (${selectedServerId ? "1 selected" : "0 selected"} of ${filtered.length})`;
+}
+
+async function sendCommand(serverId, command) {
+    const response = await fetch(`/send/${serverId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            command
+        })
+    });
+
+    return await response.json();
+}
+// --------------------
+// LIVE LOOP
+// --------------------
+setInterval(async () => {
+    await loadServers();
+    updateLogs(selectedServerId);
+}, 2000);
+
+// initial load
+loadServers();
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function highlightLine(line) {
+    const original = line;
+    line = escapeHtml(line);
+
+    // Regex to capture [timestamp] [thread/LEVEL]: message
+    const logMatch = line.match(
+        /^\[(\d{2}:\d{2}:\d{2})\]\s+\[([^\/]+)\/(INFO|WARN|ERROR|DEBUG)\]:\s*(.*)$/
+    );
+
+    if (logMatch) {
+        let [, time, thread, level, message] = logMatch;
+
+        // 1. Highlight commands (e.g., /gamemode, /stop)
+        message = message.replace(
+            /(\/[a-zA-Z0-9_:.-]+)/g,
+            '<span class="command">$1</span>'
+        );
+
+        // 2. Highlight player names for various typical server activities
+        // Captures names before: joined, left, issued, logged in, died, lost connection
+        message = message.replace(
+            /\b([A-Za-z0-9_]{3,16})\b(?=\s+(joined|left|issued|logged|died|lost))/g,
+            '<span class="player">$1</span>'
+        );
+
+        // 3. Highlight numbers, ports, or IDs (skipping digits already inside HTML tags)
+        message = message.replace(
+            /(?<!<\/[^>]*)\b(\d+)\b(?![^<]*>)/g,
+            '<span class="number">$1</span>'
+        );
+
+        // 4. Highlight coordinate printouts like x=12, y=64, z=-24
+        message = message.replace(
+            /\b([xyz]=?-?\d+)\b/gi,
+            '<span class="coord">$1</span>'
+        );
+
+        // Return structured elements to keep text styling completely isolated
+        return `<div class="log-line"><span class="timestamp">[${time}]</span> [<span class="thread">${thread}</span>/<span class="${level.toLowerCase()}">${level}</span>]: <span class="message">${message}</span></div>`;
+    }
+
+    // Capture standard Java Stacktraces or unformatted errors
+    if (
+        original.startsWith("java.") ||
+        original.trimStart().startsWith("at ") ||
+        original.includes("Exception") ||
+        original.includes("Error:")
+    ) {
+        return `<div class="log-line stacktrace">${line}</div>`;
+    }
+
+    // Default return for random terminal lines that don't match standard patterns
+    return `<div class="log-line message">${line}</div>`;
+}
+
+//const API = "http://localhost:5000"; // change if needed
+
+async function loadUser() {
+    try {
+        const res = await fetch("/user", {
+            credentials: "include"
+        });
+
+        if (!res.ok) {
+            throw new Error("HTTP " + res.status);
+        }
+
+        const data = await res.json();
+
+        console.log("User data:", data);
+
+        const isOwner = data.role === "owner";
+        const isAdmin = data.role !== "user";
+
+        document.querySelectorAll("[data-require-owner]").forEach(el => {
+            if (el.dataset.requireOwner !== String(isOwner)) {
+                el.remove();
+            }
+        });
+
+        document.querySelectorAll("[data-require-admin]").forEach(el => {
+            if (el.dataset.requireAdmin !== String(isAdmin)) {
+                el.remove();
+            }
+        });
+
+        window.currentUser = data;
+
+    if(updatefunc() && window.currentUser.role === "owner"){
+        if(confirm('Do you want to update to the latest server version')){
+            location.href = '/update'
+        }
+    }
+
+    } catch (err) {
+        console.error("Failed to load user:", err);
+    }
+}
+
+loadUser();
+    </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Glass Form Box</title>
+  <style>
+    /* ALL YOUR EXISTING CSS STAYS EXACTLY THE SAME HERE */
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: transparent; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      position: relative; overflow: hidden;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -2;
+      background-image: radial-gradient(circle at 10% 20%, rgba(255, 0, 0, 0.4), transparent 60%), radial-gradient(circle at 30% 40%, rgba(255, 165, 0, 0.4), transparent 60%), radial-gradient(circle at 50% 10%, rgba(255, 255, 0, 0.4), transparent 60%), radial-gradient(circle at 70% 30%, rgba(0, 128, 0, 0.4), transparent 60%), radial-gradient(circle at 90% 10%, rgba(0, 255, 255, 0.4), transparent 60%), radial-gradient(circle at 60% 60%, rgba(0, 0, 255, 0.4), transparent 60%), radial-gradient(circle at 80% 80%, rgba(75, 0, 130, 0.4), transparent 60%), radial-gradient(circle at 40% 70%, rgba(238, 130, 238, 0.4), transparent 60%), radial-gradient(circle at 20% 90%, rgba(255, 192, 203, 0.4), transparent 60%), radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.2), transparent 80%);
+      background-blend-mode: overlay, lighten, screen, overlay, color-dodge, overlay, screen, lighten, color-dodge, normal; filter: blur(50px);
+    }
+    body::after {
+      content: ""; position: fixed; inset: 0; z-index: -1;
+      background-image: url("https://transparenttextures.com/patterns/asfalt-light.png");
+      opacity: 0.08; pointer-events: none;
+    }
+    .outer {
+      width: auto; min-width: 280px; background: rgba(255, 255, 255, 0.08); border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 20px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; padding: 0.8rem;
+    }
+    .inner {
+      position: relative; z-index: 1; background: white; padding: 1rem; padding-top: 0;
+      border-radius: 12px; width: 100%; max-width: 260px; box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+    }
+    form { display: flex; flex-direction: column; gap: 0.5rem; }
+    .additional { display: flex; flex-direction: column; gap: 0.5rem; }
+    input, button { padding: 0.4rem; border: 1px solid #ccc; border-radius: 8px; font-size: 0.8rem; width: 100%; box-sizing: border-box; }
+    .submit { background-color: #0b91d7; color: white; border: none; cursor: pointer; transition: background 0.3s ease; }
+    .submit:hover { background-color: #066899; }
+    hr { margin: 0.2px; border: 1px solid rgb(0, 0, 0); line-height: 3px; }
+    .link { font-size: 0.75rem; text-align: center; margin-top: 0.5rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="outer">
+    <div class="inner">
+      <form id="signupForm">
+        <h2 style="text-align: center;">sign up</h2><hr><br>
+        <input type="email" id="upEmail" placeholder="Your email" required />
+        <div class="additional hidden">
+          <input type="text" id="upUser" placeholder="Minecraft Username" />
+          <input type="password" id="upPass" placeholder="Password" />
+        </div>
+        <button type="submit" class="submit" id="signupBtn">Continue</button>
+        <div class="link">Already have an account? <a href="#" id="toSignIn">Sign in</a></div>
+      </form>
+
+      <form id="signinForm" class="hidden">
+        <h2 style="text-align: center;">sign in</h2><hr><br>
+        <input type="text" id="username" placeholder="Your account" required />
+        <input type="password" id="inPass" placeholder="Password" required />
+        <button type="submit" class="submit">Sign in</button>
+        <div class="link">Don't have an account? <a href="#" id="toSignUp">Sign up</a></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const signupForm = document.getElementById('signupForm');
+    const signinForm = document.getElementById('signinForm');
+    const additionalFields = document.querySelector('.additional');
+    const toSignIn = document.getElementById('toSignIn');
+    const toSignUp = document.getElementById('toSignUp');
+    const signupBtn = document.getElementById('signupBtn');
+
+    if(localStorage.getItem("hasAccount") === "true"){
+      signupForm.classList.add('hidden');
+      signinForm.classList.remove('hidden');
+    }
+    // UI Toggles
+    toSignIn.addEventListener('click', (e) => {
+      e.preventDefault();
+      signupForm.classList.add('hidden');
+      signinForm.classList.remove('hidden');
+    });
+
+    toSignUp.addEventListener('click', (e) => {
+      e.preventDefault();
+      signinForm.classList.add('hidden');
+      signupForm.classList.remove('hidden');
+    });
+
+    // Handle Sign Up
+    signupForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      
+      // Step 1: Reveal remaining fields
+      if (additionalFields.classList.contains('hidden')) {
+        additionalFields.classList.remove('hidden');
+        signupForm.querySelector('.link').classList.add('hidden');
+        signupBtn.innerText = "Sign up";
+        return;
+      }
+
+      // Step 2: Post to Backend
+      const email = document.getElementById('upEmail').value;
+      const username = document.getElementById('upUser').value;
+      const password = document.getElementById('upPass').value;
+
+      const res = await fetch('/create-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username, password })
+      });
+      const data = await res.json();
+      
+      if(res.ok) {
+        alert(data.message + ". Please sign in.");
+        toSignIn.click(); // send them to sign in
+      } else {
+        alert("Error: " + data.error);
+      }
+    });
+
+    // Handle Sign In
+    signinForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('inPass').value;
+
+      const res = await fetch('/sign-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+
+      if(res.ok) {
+        alert("Success! Welcome back as: " + data.role);
+        localStorage.setItem("hasAccount", "true");
+        window.location.href = "/"; // Redirect user to the dashboard
+      } else {
+        alert("Error: " + data.error);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<style type="text/css" media="all">
+  /* Container styling */
+body {
+  background-color: #0d1117; 
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+}
+
+.update-container {
+  text-align: center;
+  background: #161b22;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+  border: 1px solid #30363d;
+}
+
+/* Animation positioning */
+.animation-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 24px auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Dynamic Professional Spinner */
+.spinner {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid transparent;
+  border-top: 3px solid #58a6ff; /* Solid crisp leading edge */
+  border-right: 3px solid rgba(88, 166, 255, 0.2); /* Soft trailing edge */
+  border-radius: 50%;
+  /* Using cubic-bezier gives it a premium "whip and glide" motion instead of static rotation */
+  animation: professional-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Faint secondary tech-ring for depth */
+.spinner::before {
+  content: '';
+  position: absolute;
+  top: -8px; left: -8px; right: -8px; bottom: -8px;
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-left: 1px solid rgba(88, 166, 255, 0.15);
+  border-radius: 50%;
+  animation: spin-reverse 4s linear infinite;
+}
+
+/* Micro server rack */
+.server-rack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 50px;
+  background: #21262d;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  z-index: 2;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.server-blade {
+  height: 8px;
+  background: #30363d;
+  border-radius: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+
+/* LED Base styling */
+.led {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  position: absolute;
+  right: 6px;
+}
+
+/* Middle updating LED (Steady pace, persistent writing) */
+.led.pulsing {
+  background-color: #f0883e;
+  animation: write-pulse 0.6s infinite alternate;
+}
+
+/* Super-fast erratic hardware flickering */
+.led.network-1 {
+  animation: rapid-flicker-a 12s infinite linear;
+}
+
+.led.network-2 {
+  animation: rapid-flicker-b 0.002s infinite linear;
+}
+
+/* Text Animations */
+.loading-text {
+  color: #c9d1d9;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.sub-text {
+  color: #8b949e;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.dot {
+  animation: textBlink 1.4s infinite both;
+  color: #58a6ff;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+
+/* --- KEYFRAMES --- */
+
+/* Professional variable velocity spin */
+@keyframes professional-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin-reverse {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Middle update LED pulse */
+@keyframes write-pulse {
+  0% { background-color: #21262d; box-shadow: none; }
+  100% { background-color: #f0883e; box-shadow: 0 0 8px #f0883e; }
+}
+
+/* Erratic Hardware Flicker Array A */
+@keyframes rapid-flicker-a {
+  0%, 100%, 40%, 70% { background-color: #3fb950; box-shadow: 0 0 6px #2ea043; opacity: 1; }
+  20%, 55%, 85% { background-color: #1f5e28; box-shadow: none; opacity: 0.3; }
+}
+
+/* Erratic Hardware Flicker Array B (Slightly altered timing to avoid synchronization) */
+@keyframes rapid-flicker-b {
+  0%, 100%, 30%, 80% { background-color: #3fb950; box-shadow: 0 0 6px #2ea043; opacity: 1; }
+  15%, 50%, 90% { background-color: #1f5e28; box-shadow: none; opacity: 0.2; }
+}
+
+@keyframes textBlink {
+  0% { opacity: .2; }
+  20% { opacity: 1; }
+  100% { opacity: .2; }
+}
+</style>
+
+
+<div class="update-container">
+  <div class="animation-wrapper">
+    <div class="spinner"></div>
+    
+    <div class="server-rack">
+      <div class="server-blade">
+        <span class="led green network-1"></span>
+      </div>
+      <div class="server-blade">
+        <span class="led pulsing"></span>
+      </div>
+      <div class="server-blade">
+        <span class="led green network-2"></span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="loading-text">
+    Updating Server<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+  </div>
+  <p class="sub-text">Please do not restart the daemon</p>
+</div>
+<div style="position:fixed;left:0;right:0;bottom:20px;display:flex;justify-content:center">
+  <div style="width:60%;background:#0b1220;padding:12px;border-radius:8px;border:1px solid #222;color:#9aa4b2">
+    <div style="font-weight:600;margin-bottom:6px">Status: <span id="update-status">Initializing</span></div>
+    <div style="background:#0f1720;border-radius:6px;height:12px;overflow:hidden">
+      <div id="update-bar" style="height:12px;width:0%;background:#58a6ff;transition:width 400ms ease"></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:#8b949e">Message: <span id="update-message">Starting...</span></div>
+    <div style="margin-top:8px;font-size:12px;color:#8b949e">Last: <span id="update-last">-</span></div>
+    <button id="update-close" style="margin-top:10px;padding:10px 18px;background:#58a6ff;color:#0d1117;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:none">Back to Dashboard</button>
+  </div>
+</div>
+
+<script>
+  function isFinalStatus(status) {
+    return ['applied','error','no_release','no_asset','already_downloaded'].includes(status);
+  }
+
+  async function fetchState(){
+    try{
+      const r = await fetch('/api/update/state');
+      if(!r.ok) return;
+      const j = await r.json();
+      document.getElementById('update-status').innerText = j.status || 'idle';
+      document.getElementById('update-message').innerText = j.message || '';
+      const progress = j.progress !== undefined ? j.progress : (j.status === 'applied'?100:0);
+      document.getElementById('update-bar').style.width = Math.min(100,progress)+'%';
+      document.getElementById('update-last').innerText = (j.last && (j.last.tag || j.last.name)) || (j.last && j.last.path) || '-';
+      const closeButton = document.getElementById('update-close');
+      const spinner = document.querySelector('.spinner');
+      const loadingText = document.querySelector('.loading-text');
+      if (isFinalStatus(j.status)) {
+        closeButton.style.display = 'inline-block';
+        if (spinner) spinner.style.animationPlayState = 'paused';
+        if (loadingText) {
+          loadingText.innerText = j.status === 'applied' ? 'Update complete' : 'Update finished';
+        }
+      } else {
+        closeButton.style.display = 'none';
+        if (spinner) spinner.style.animationPlayState = 'running';
+        if (loadingText) loadingText.innerText = 'Updating Server...';
+      }
+    }catch(e){
+      // ignore
+    }
+  }
+  document.getElementById('update-close').addEventListener('click', function(){
+    window.location.href = '/';
+  });
+  setInterval(fetchState, 1000);
+  fetchState();
+</script>

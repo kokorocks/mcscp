@@ -1,0 +1,476 @@
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <title>Virtual FS</title>
+    <style>
+    body{margin:0;font-family:Arial;background:#111;color:#eee;height:100vh;display:flex}
+    #sidebar{width:320px;border-right:1px solid #333;overflow:auto;padding:10px}
+    #main{flex:1;display:flex;flex-direction:column}
+    #toolbar{padding:10px;border-bottom:1px solid #333}
+    #viewer{flex:1;overflow:auto;padding:15px}
+    .item{padding:6px;cursor:pointer;border-radius:6px}
+    .item:hover{background:#222}
+    pre{white-space:pre-wrap;background:#1a1a1a;padding:10px}
+    img{max-width:100%;border-radius:8px}
+    #modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none}
+    #modalbox{position:absolute;left:5%;top:5%;width:90%;height:90%;background:#181818}
+    #editor{width:100%;height:calc(100% - 50px)}
+    button{margin-right:5px}
+    #contextMenu{
+      position:fixed;
+      display:none;
+      background:#1e1e1e;
+      border:1px solid #444;
+      border-radius:8px;
+      min-width:180px;
+      z-index:9999;
+      box-shadow:0 0 20px rgba(0,0,0,.5);
+    }
+
+    #contextMenu .menu-item{
+      padding:10px;
+      cursor:pointer;
+    }
+
+    #contextMenu .menu-item:hover{
+      background:#333;
+    }
+
+    .item{
+      padding:8px;
+      border-radius:6px;
+      cursor:pointer;
+    }
+
+    .item:hover{
+      background:#222;
+    }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+    </head>
+
+    <body>
+    <div id="sidebar"></div>
+
+    <div id="main">
+        <div id="toolbar">
+        
+          <button onclick="createFolder()">
+            New Folder
+          </button>
+        
+          <input
+            type="file"
+            id="upload"
+            multiple
+            style="display:none"
+          >
+        
+          <button onclick="document.getElementById('upload').click()">
+            Upload
+          </button>
+        
+          <button onclick="uploadFiles()">
+            Upload Selected
+          </button>
+        
+          <button onclick="pasteItem()">
+            Paste
+          </button>
+        
+          <span id="path"></span>
+        
+        </div>
+      </div>
+
+      <div id="viewer">Select a file.</div>
+    </div>
+
+    <div id="modal">
+      <div id="modalbox">
+        <div style="padding:10px">
+          <button onclick="saveFile()">Save</button>
+          <button onclick="closeEditor()">Close</button>
+        </div>
+        <div id="editor"></div>
+      </div>
+    </div>
+<div id="contextMenu">
+  <div class="menu-item" onclick="menuOpen()">Open</div>
+  <div class="menu-item" onclick="menuRename()">Rename</div>
+  <div class="menu-item" onclick="menuCopy()">Copy</div>
+  <div class="menu-item" onclick="menuCut()">Cut</div>
+  <div class="menu-item" onclick="menuDelete()">Delete</div>
+</div>
+    <script>
+    const KEY = "popup_accepted_yessiryry";
+
+    window.onload = () => {
+      const accepted = localStorage.getItem(KEY);
+
+      if (!accepted) {
+        const ok = confirm("Welcome \\n You are editing the files of you minecraft server, make sure you know what you are doing before you make any changes \\n\\n click 'OK', to never see this popup again");
+
+        if (ok) {
+          localStorage.setItem(KEY, "true");
+        }
+        // if they click Cancel → nothing is saved → it will show again next visit
+      }
+    };
+    function server(){
+        return window.location.pathname.split("/")[2];
+    }
+
+    let currentDir="";
+    let currentFile="";
+    let editor;
+    let selectedItem=null;
+    let selectedIsDir=false;
+
+    let clipboard=null;
+    let clipboardMode=null;
+    function load(path=""){
+      const s = server();
+
+      fetch(`/files/${s}/api/list?path=`+encodeURIComponent(path))
+      .then(r=>r.json())
+      .then(data=>{
+
+        currentDir=data.path;
+
+        document.getElementById("path").innerText="/"+data.path;
+
+        let html="";
+
+        if(data.path){
+          let parent=data.path.split("/").slice(0,-1).join("/");
+
+          html+=`
+          <div class="item">
+            <button onclick="load('${parent}')">⬅ ..</button>
+          </div>
+          `;
+        }
+
+        data.items.forEach(i=>{
+
+            html += `
+            <div class="item"
+                 onclick="${i.dir ? `load('${i.path}')` : `openFile('${i.path}')`}"
+                 oncontextmenu="showMenu(event,'${i.path}',${i.dir})">
+
+                ${i.dir ? "📁" : "📄"} ${i.name}
+
+            </div>
+            `;
+        })});
+
+          }else{
+
+            html+=`
+            <div class="item">
+
+              📄 ${i.name}
+
+              <button onclick="event.stopPropagation();openFile('${i.path}')">
+                Open
+              </button>
+
+              <button onclick="event.stopPropagation();renameItem('${i.path}')">
+                Rename
+              </button>
+
+              <button onclick="event.stopPropagation();deleteItem('${i.path}')">
+                Delete
+              </button>
+
+              <button onclick="event.stopPropagation();copyItem('${i.path}')">
+                Copy
+              </button>
+
+              <button onclick="event.stopPropagation();cutItem('${i.path}')">
+                Cut
+              </button>
+
+            </div>
+            `;
+
+
+        document.getElementById("sidebar").innerHTML=html;
+
+    }
+    function showMenu(e,path,isDir){
+
+        e.preventDefault();
+
+        selectedItem=path;
+        selectedIsDir=isDir;
+
+        const menu=document.getElementById("contextMenu");
+
+        menu.style.left=e.pageX+"px";
+        menu.style.top=e.pageY+"px";
+        menu.style.display="block";
+    }
+    document.addEventListener("click",()=>{
+
+        document.getElementById("contextMenu").style.display="none";
+
+    });
+    function menuOpen(){
+
+        if(selectedIsDir)
+            load(selectedItem);
+        else
+            openFile(selectedItem);
+    }function menuRename(){
+
+    renameItem(selectedItem);
+}function menuDelete(){
+
+    deleteItem(selectedItem);
+}function menuCopy(){
+
+    copyItem(selectedItem);
+}function menuCut(){
+
+    cutItem(selectedItem);
+}
+    function openFile(path){
+      const s = server();
+
+      fetch(`/files/${s}/api/file?path=`+encodeURIComponent(path))
+      .then(r=>r.json())
+      .then(data=>{
+        currentFile=path;
+
+        const ext = path.split('.').pop().toLowerCase();
+
+        let viewer = document.getElementById("viewer");
+
+        // IMAGE
+        if(["png","jpg","jpeg","gif","webp","bmp","svg"].includes(ext)){
+          viewer.innerHTML = `
+            <img src="/files/${s}/raw?path=${encodeURIComponent(path)}"><br>
+            <a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+          `;
+          return;
+        }
+
+        // AUDIO
+        if(["mp3","wav","ogg"].includes(ext)){
+          viewer.innerHTML = `
+            <audio controls src="/files/${s}/raw?path=${encodeURIComponent(path)}"></audio><br>
+            <a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+          `;
+          return;
+        }
+
+        // VIDEO
+        if(["mp4","webm","mov"].includes(ext)){
+          viewer.innerHTML = `
+            <video controls style="max-width:100%" src="/files/${s}/raw?path=${encodeURIComponent(path)}"></video><br>
+            <a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+          `;
+          return;
+        }
+
+        // PDF
+        if(ext === "pdf"){
+          viewer.innerHTML = `
+            <iframe src="/files/${s}/raw?path=${encodeURIComponent(path)}"
+            style="width:100%;height:90%"></iframe><br>
+            <a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+          `;
+          return;
+        }
+
+        // TEXT (editable/preview)
+        if(["txt","py","js","html","css","json","md","yml","yaml","xml","ini","cfg","java","c","cpp","cs","php","sh","bat","properties"].includes(ext)){
+            viewer.innerHTML = `
+              <button onclick="editFile()">Edit</button>
+              <pre>${escapeHtml(data.content||"")}</pre>
+              <br><a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+            `
+        return
+        };
+        viewer.innerHTML = `
+          <br><a href="/files/${s}/raw?path=${encodeURIComponent(path)}">Download</a>
+            `
+      });
+    }
+
+    function escapeHtml(t){
+      return (t||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    }
+
+    function editFile(){
+      const s = server();
+
+      document.getElementById("modal").style.display="block";
+
+      fetch(`/files/${s}/api/file?path=`+encodeURIComponent(currentFile))
+      .then(r=>r.json())
+      .then(data=>{
+        require.config({paths:{vs:'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs'}});
+        require(['vs/editor/editor.main'], function(){
+          if(editor) editor.dispose();
+
+          editor=monaco.editor.create(document.getElementById("editor"),{
+            value:data.content||"",
+            language:'plaintext',
+            theme:'vs-dark',
+            automaticLayout:true
+          });
+        });
+      });
+    }
+
+    function closeEditor(){
+      document.getElementById("modal").style.display="none";
+    }
+
+    function saveFile(){
+      const s = server();
+
+      fetch(`/files/${s}/api/save`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          path:currentFile,
+          content:editor.getValue()
+        })
+      }).then(()=>closeEditor());
+    }
+
+    function uploadFiles(){
+      const s = server();
+
+      let fd = new FormData();
+
+      fd.append("path", currentDir);
+
+      for(let f of document.getElementById("upload").files){
+          fd.append("files", f, f.webkitRelativePath || f.name);
+      }
+
+      fetch(`/files/${s}/api/upload`,{
+          method:"POST",
+          body:fd
+      }).then(()=>{
+          load(currentDir);
+      });
+    }
+    function createFolder(){
+
+          let name = prompt("Folder name");
+
+          if(!name) return;
+
+          fetch(`/files/${server()}/api/mkdir`,{
+            method:"POST",
+            headers:{
+              "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+              parent:currentDir,
+              name:name
+            })
+          })
+          .then(()=>load(currentDir));
+        }
+    function deleteItem(path){
+
+      if(!confirm("Delete "+path+" ?"))
+        return;
+
+      fetch(`/files/${server()}/api/delete`,{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          path:path
+        })
+      })
+      .then(()=>{
+        load(currentDir);
+      });
+    }
+    function renameItem(path){
+
+      let currentName = path.split("/").pop();
+
+      let newName = prompt(
+        "New name",
+        currentName
+      );
+
+      if(!newName)
+        return;
+
+      fetch(`/files/${server()}/api/rename`,{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          path:path,
+          name:newName
+        })
+      })
+      .then(()=>{
+        load(currentDir);
+      });
+    }
+    
+    function copyItem(path){
+
+      clipboard=path;
+      clipboardMode="copy";
+
+      alert("Copied: "+path);
+    }
+    function cutItem(path){
+
+      clipboard=path;
+      clipboardMode="cut";
+
+      alert("Cut: "+path);
+    }
+    
+    function pasteItem(){
+
+      if(!clipboard){
+        alert("Clipboard empty");
+        return;
+      }
+
+      fetch(`/files/${server()}/api/paste`,{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          src:clipboard,
+          dst:currentDir,
+          mode:clipboardMode
+        })
+      })
+      .then(()=>{
+
+        if(clipboardMode==="cut"){
+          clipboard=null;
+          clipboardMode=null;
+        }
+
+        load(currentDir);
+      });
+    }
+    
+    load("");
+    </script>
+    </body>
+    </html>

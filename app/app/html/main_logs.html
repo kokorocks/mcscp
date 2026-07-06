@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Console Dashboard</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #1e1e1e;
+            --bg-sidebar: #252526;
+            --bg-toolbar: #2d2d2d;
+            --bg-active: #37373d;
+            --bg-hover: #2a2d2e;
+            --border: #3c3c3c;
+            --text-main: #d4d4d4;
+            --text-muted: #858585;
+            --accent: #007acc;
+            --accent-hover: #0062a3;
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            overflow: hidden;
+        }
+
+        .dashboard-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-toolbar);
+        }
+
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .log-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 0;
+        }
+
+        .log-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: background 0.1s, border 0.1s;
+        }
+
+        .log-item:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .log-item.active {
+            background-color: var(--bg-active);
+            border-left-color: var(--accent);
+        }
+
+        .log-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-item-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            padding-left: 22px;
+        }
+
+        /* Split Layout Workspace */
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #pane-logs { flex: 0 0 50%; }
+        #pane-terminal { flex: 0 0 50%; }
+
+        .splitter-horizontal {
+            height: 4px;
+            background-color: var(--border);
+            cursor: ns-resize;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .splitter-horizontal:hover { background-color: var(--accent); }
+
+        .toolbar {
+            height: 38px;
+            background-color: var(--bg-toolbar);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .toolbar-group { display: flex; align-items: center; gap: 12px; }
+        .pane-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); }
+
+        .log-viewer-body { flex: 1; overflow-y: auto; background-color: var(--bg-main); padding: 12px; }
+        #log-text { margin: 0; font-family: var(--font-mono); font-size: 13px; }
+        .terminal-body { flex: 1; background-color: var(--bg-main); padding: 8px; overflow: hidden; }
+
+        input[type="text"] {
+            background-color: #3c3c3c;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            outline: none;
+            width: 220px;
+        }
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        button.btn {
+            background-color: var(--accent);
+            color: #ffffff;
+            border: none;
+            padding: 5px 14px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        button.btn:hover { background-color: var(--accent-hover); }
+        button.btn:disabled { background-color: #3c3c3c; color: var(--text-muted); cursor: not-allowed; }
+        button.btn-icon { background: none; border: none; color: var(--text-main); cursor: pointer; padding: 4px 6px; }
+
+        .checkbox-container { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+        .placeholder-text { text-align: center; color: var(--text-muted); margin-top: 60px; font-size: 13px; }
+
+        /* --- STANDARD DENSE LOG RENDERER STYLE --- */
+        .log-line { 
+            white-space: pre-wrap; 
+            font-family: var(--font-mono); 
+            word-break: break-all; 
+            color: #f8f8f2; 
+            margin: 0;
+            padding: 1px 4px;
+            line-height: 1.4; /* Tight professional terminal line-height */
+            border-left: 3px solid transparent;
+        }
+        
+        /* Structural Accents */
+        .timestamp { color: #6272a4; }
+        .log-bracket { color: #6272a4; }
+        .log-thread { color: #8be9fd; }
+        .log-logger { color: #0dbc79; }
+        
+        /* Level Highlights */
+        .level-info { color: #50fa7b; font-weight: bold; }
+        .level-warn { color: #ffb86c; font-weight: bold; }
+        .level-error { color: #ff5555; font-weight: bold; }
+        .level-debug { color: #bd93f9; font-weight: bold; }
+
+        /* Python Traceback Structural Adjustments */
+        .traceback-header { color: #ffb86c; font-weight: bold; }
+        .traceback-file { color: #8be9fd; }
+        .traceback-line-num { color: #ff79c6; font-weight: bold; }
+        .traceback-func { color: #f1fa8c; }
+        
+        /* Error Highlighting with tight visual indicators instead of massive gaps */
+        .critical-exception-line { 
+            color: #ff5555; 
+            font-weight: bold; 
+            background-color: rgba(255, 85, 85, 0.08); 
+            border-left: 3px solid #ff5555;
+        }
+        
+        /* Value Parsing Spans */
+        .token-number { color: #ff79c6; }
+        .token-ip { color: #bd93f9; }
+        .token-http-req { color: #f1fa8c; font-weight: bold; }
+        .token-status-success { color: #50fa7b; font-weight: bold; }
+        .token-status-fail { color: #ff5555; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h3>Log Browser</h3>
+                <button onclick="refreshLogs()" class="btn-icon" title="Refresh List"><i class="fa-solid fa-rotate"></i></button>
+            </div>
+            <div id="log-list" class="log-list"></div>
+        </aside>
+
+        <main class="workspace">
+            <section id="pane-logs" class="pane">
+                <div class="toolbar">
+                    <div class="toolbar-group">
+                        <span class="pane-title">Log Output:</span>
+                        <span id="log-title-display" style="font-size: 12px; font-weight: 500;">None Selected</span>
+                    </div>
+                    <div class="toolbar-group">
+                        <input type="text" id="log-search" placeholder="Search / Filter log lines..." oninput="renderLogs()">
+                        <label class="checkbox-container"><input type="checkbox" id="auto-scroll" checked> Auto-scroll</label>
+                        <button id="btn-download" class="btn" disabled onclick="downloadCurrentLog()">Download File</button>
+                    </div>
+                </div>
+                <div id="log-viewer-container" class="log-viewer-body">
+                    <div id="log-placeholder" class="placeholder-text">Select a file path from the file list system to begin trailing.</div>
+                    <div id="log-text" style="display: none;"></div>
+                </div>
+            </section>
+
+            <div id="splitter" class="splitter-horizontal"></div>
+
+            <section id="pane-terminal" class="pane">
+                <div class="toolbar"><span class="pane-title">Interactive Terminal Session (Bash)</span></div>
+                <div id="terminal-body" class="terminal-body"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let logLines = [];
+        let currentLog = null;
+        let logWs = null, terminalWs = null, termInstance = null, fitAddonInstance = null;
+
+        // Interactive Pane Splitter Configuration
+        const splitter = document.getElementById('splitter');
+        const paneLogs = document.getElementById('pane-logs');
+        const paneTerminal = document.getElementById('pane-terminal');
+
+        splitter.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            document.body.style.cursor = 'ns-resize';
+            document.addEventListener('mousemove', handleSplitterMove);
+            document.addEventListener('mouseup', stopSplitterMove);
+        });
+        function handleSplitterMove(e) {
+            const containerBounds = splitter.parentElement.getBoundingClientRect();
+            const percentage = ((e.clientY - containerBounds.top) / containerBounds.height) * 100;
+            if (percentage > 10 && percentage < 90) {
+                paneLogs.style.flex = `0 0 ${percentage}%`;
+                paneTerminal.style.flex = `0 0 ${100 - percentage}%`;
+                if (fitAddonInstance) fitAddonInstance.fit();
+            }
+        }
+        function stopSplitterMove() {
+            document.body.style.cursor = 'default';
+            document.removeEventListener('mousemove', handleSplitterMove);
+            document.removeEventListener('mouseup', stopSplitterMove);
+            if (fitAddonInstance) fitAddonInstance.fit();
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function formatLogEntities(message) {
+            message = message.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '<span class="token-ip">$&</span>');
+            
+            message = message.replace(/&quot;(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s([^\s]+)\s(HTTP\/[0-9.]+)?&quot;/g, 
+                `&quot;<span class="token-http-req">$1 $2 $3</span>&quot;`);
+
+            message = message.replace(/\b(200|201|204|301|302|304)\b/g, '<span class="token-status-success">$1</span>');
+            message = message.replace(/\b(400|401|403|404|405|500|502|503|504)\b/g, '<span class="token-status-fail">$1</span>');
+
+            message = message.replace(/(?<![A-Za-z0-9-📈=\/".#;])\b(\d+)\b(?![A-Za-z0-9-📈"\/])/g, '<span class="token-number">$1</span>');
+
+            return message;
+        }
+
+        function highlightLine(line) {
+            const rawLine = line.trim();
+            if (!rawLine) return '<div class="log-line">&nbsp;</div>';
+
+            let escaped = escapeHtml(line);
+
+            if (rawLine.startsWith("Traceback (most recent call last):")) {
+                return `<div class="log-line traceback-header">${escaped}</div>`;
+            }
+
+            const tracebackFileMatch = escaped.match(/^\s*(File\s+)(&quot;[^&]+&quot;),\s*line\s*(\d+),\s*in\s*([A-Za-z0-9_]+)/);
+            if (tracebackFileMatch) {
+                const [, fileLabel, filePath, lineNum, funcName] = tracebackFileMatch;
+                return `<div class="log-line">    ${fileLabel}<span class="traceback-file">${filePath}</span>, line <span class="traceback-line-num">${lineNum}</span>, in <span class="traceback-func">${funcName}</span></div>`;
+            }
+
+            if (rawLine.match(/^([A-Za-z0-9_]+Error|Exception)(\s*:|\s+in\s+thread)/) || rawLine.startsWith("Exception in thread")) {
+                return `<div class="log-line critical-exception-line">${formatLogEntities(escaped)}</div>`;
+            }
+
+            const pythonLogMatch = escaped.match(/^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}[,\.]\d{3})\s+\[(INFO|WARN|WARNING|ERROR|CRITICAL|DEBUG)\]\s+([\w.]+):\s*(.*)$/i);
+            if (pythonLogMatch) {
+                const [, timestamp, level, logger, message] = pythonLogMatch;
+                const lvlClass = `level-${level.toLowerCase() === 'warning' ? 'warn' : level.toLowerCase()}`;
+                return `<div class="log-line">` +
+                    `<span class="timestamp">${timestamp}</span> ` +
+                    `<span class="log-bracket">[</span><span class="${lvlClass}">${level}</span><span class="log-bracket">]</span> ` +
+                    `<span class="log-logger">${logger}:</span> ${formatLogEntities(message)}` +
+                `</div>`;
+            }
+
+            const mcLogMatch = escaped.match(/^\[(.*?)\ ]\s+\[(.*?)\/(INFO|WARN|ERROR|DEBUG)\]:\s*(.*)$/i);
+            if (mcLogMatch) {
+                const [, timestamp, thread, level, message] = mcLogMatch;
+                const lvlClass = `level-${level.toLowerCase()}`;
+                return `<div class="log-line">` +
+                    `<span class="timestamp">[${timestamp}]</span> ` +
+                    `<span class="log-bracket">[</span><span class="log-thread">${thread}</span><span class="log-bracket">/</span><span class="${lvlClass}">${level}</span><span class="log-bracket">]</span>: ` +
+                    `<span>${formatLogEntities(message)}</span>` +
+                `</div>`;
+            }
+
+            return `<div class="log-line">${formatLogEntities(escaped)}</div>`;
+        }
+
+        function refreshLogs() {
+            fetch('/main-logs/api/logs')
+                .then(res => res.json())
+                .then(data => {
+                    const listContainer = document.getElementById('log-list');
+                    listContainer.innerHTML = '';
+                    if (data.length === 0) {
+                        listContainer.innerHTML = '<div class="placeholder-text" style="margin-top:20px;">No logs found</div>';
+                        return;
+                    }
+                    data.forEach(file => {
+                        const item = document.createElement('div');
+                        item.className = `log-item ${currentLog === file.name ? 'active' : ''}`;
+                        item.innerHTML = `
+                            <div class="log-item-title"><i class="fa-regular fa-file-lines"></i> ${file.name}</div>
+                            <div class="log-item-meta"><span>${formatBytes(file.size)}</span><span>${new Date(file.modified * 1000).toLocaleString()}</span></div>
+                        `;
+                        item.onclick = () => selectLogFile(file.name);
+                        listContainer.appendChild(item);
+                    });
+                }).catch(() => console.error('Failed to look up log repository files.'));
+        }
+
+        function formatBytes(b) {
+            if (b === 0) return '0 B';
+            const i = Math.floor(Math.log(b) / Math.log(1024));
+            return parseFloat((b / Math.pow(1024, i)).toFixed(2)) + ' ' + ['B', 'KB', 'MB', 'GB'][i];
+        }
+
+        function selectLogFile(name) {
+            currentLog = name;
+            document.getElementById('btn-download').disabled = false;
+            document.getElementById('log-title-display').textContent = name;
+            document.getElementById('log-placeholder').style.display = 'none';
+            document.getElementById('log-text').style.display = 'block';
+            refreshLogs();
+
+            if (logWs) { logWs.close(); logWs = null; }
+
+            fetch(`/main-logs/api/log/${encodeURIComponent(name)}`)
+                .then(res => res.text())
+                .then(text => {
+                    // Normalize standard and Windows newlines dynamically, filtering trailing items
+                    logLines = text.split(/\r?\n/);
+                    if (logLines.length > 0 && logLines[logLines.length - 1] === '') {
+                        logLines.pop();
+                    }
+                    renderLogs();
+                    
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    logWs = new WebSocket(`${protocol}//${window.location.host}/main-logs/ws/log/${encodeURIComponent(name)}`);
+                    logWs.onmessage = (e) => {
+                        const incoming = e.data.split(/\r?\n/);
+                        incoming.forEach((line, idx) => {
+                            if (idx === incoming.length - 1 && line === '') return;
+                            logLines.push(line);
+                        });
+                        renderLogs();
+                    };
+                });
+        }
+
+        function renderLogs() {
+            const query = document.getElementById('log-search').value.toLowerCase();
+            const textDisplayNode = document.getElementById('log-text');
+            const scrollContainer = document.getElementById('log-viewer-container');
+            
+            let matchedLines = query ? logLines.filter(l => l.toLowerCase().includes(query)) : logLines;
+            textDisplayNode.innerHTML = matchedLines.map(line => highlightLine(line)).join('');
+
+            if (document.getElementById('auto-scroll').checked) {
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            }
+        }
+
+        function downloadCurrentLog() { if (currentLog) window.location.href = `/main-logs/download/${encodeURIComponent(currentLog)}`; }
+
+        function initTerminalSession() {
+            termInstance = new Terminal({
+                theme: { background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd' },
+                cursorBlink: true, fontFamily: 'var(--font-mono)', fontSize: 13
+            });
+            fitAddonInstance = new window.FitAddon.FitAddon();
+            termInstance.loadAddon(fitAddonInstance);
+            termInstance.open(document.getElementById('terminal-body'));
+            fitAddonInstance.fit();
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            terminalWs = new WebSocket(`${protocol}//${window.location.host}/main-logs/ws/terminal`);
+            terminalWs.onopen = () => terminalWs.send(`__resize__:${termInstance.rows}:${termInstance.cols}`);
+            terminalWs.onmessage = (e) => termInstance.write(e.data);
+            termInstance.onData(data => { if (terminalWs?.readyState === WebSocket.OPEN) terminalWs.send(data); });
+            window.addEventListener('resize', () => fitAddonInstance.fit());
+        }
+
+        window.addEventListener('DOMContentLoaded', () => { refreshLogs(); initTerminalSession(); });
+    </script>
+</body>
+</html>

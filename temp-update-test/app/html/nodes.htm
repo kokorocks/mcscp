@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Server Network Topology</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    /* --- CSS Variables for Light/Dark Mode --- */
+    :root {
+      --bg-color: #f4f6f8;
+      --grid-color: rgba(0, 0, 0, 0.04);
+      --card-bg: #ffffff;
+      --text-main: #333333;
+      --text-muted: #666666;
+      --link-color: #a0aec0;
+      --menu-bg: #ffffff;
+      --menu-border: #e2e8f0;
+      --menu-hover: #edf2f7;
+      --btn-text: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #1a202c;
+        --grid-color: rgba(255, 255, 255, 0.03);
+        --card-bg: #2d3748;
+        --text-main: #f7fafc;
+        --text-muted: #a0aec0;
+        --link-color: #4a5568;
+        --menu-bg: #2d3748;
+        --menu-border: #4a5568;
+        --menu-hover: #4a5568;
+      }
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      transition: background-color 0.3s ease;
+    }
+
+    /* Infinite Canvas Container */
+    #graph-container {
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+      /* CSS Grid overlay that scales with pan/zoom via JS variables */
+      background-image: 
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+      background-size: var(--zoom-grid-size, 40px) var(--zoom-grid-size, 40px);
+      background-position: var(--zoom-grid-x, 0px) var(--zoom-grid-y, 0px);
+    }
+    
+    #graph-container:active {
+      cursor: grabbing;
+    }
+
+    /* Target wrapper inside container for handling zoom transformations */
+    #zoom-wrapper {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+    }
+
+    #links-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 5000px; /* Oversized to prevent link clipping during massive panning */
+      height: 5000px;
+      pointer-events: none;
+    }
+
+    .link {
+      stroke: var(--link-color);
+      stroke-width: 3px;
+      stroke-dasharray: 5, 5;
+      transition: stroke 0.3s ease;
+    }
+
+    #nodes-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      user-select: none;
+    }
+
+    .node:active {
+      cursor: grabbing;
+    }
+
+    /* Server Card UI structure */
+    .server-card {
+      width: 260px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border: 2px solid transparent;
+      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease;
+    }
+
+    .server-card:hover {
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    }
+
+    /* Theme-agnostic status borders */
+    .status-online { border-color: #4CAF50; }
+    .status-warning { border-color: #FF9800; }
+    .status-offline { border-color: #F44336; }
+    .status-core { border-color: #673AB7; }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .badge {
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+    .badge-online { background-color: #4CAF50; }
+    .badge-warning { background-color: #FF9800; }
+    .badge-offline { background-color: #F44336; }
+    .badge-core { background-color: #673AB7; }
+
+    .metric {
+      margin-bottom: 12px;
+    }
+    .metric-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .progress-bar {
+      height: 8px;
+      background-color: var(--menu-hover);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+    
+    .fill-cpu { background-color: #4CAF50; }
+    .fill-mem { background-color: #2196F3; }
+    .fill-danger { background-color: #F44336; }
+    .fill-core { background-color: #9C27B0; }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--btn-text);
+      cursor: pointer;
+    }
+    .btn-restart { background-color: #2196F3; }
+    .btn-monitor { background-color: #4CAF50; }
+
+    /* Top Action Bar Configuration */
+    #add-node-btn {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      padding: 12px 20px;
+      background-color: #2d3748;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    #add-node-btn:hover {
+      background-color: #1a202c;
+    }
+
+    /* Custom Right-Click Context Menu */
+    #context-menu {
+      position: fixed;
+      display: none;
+      z-index: 100;
+      background: var(--menu-bg);
+      border: 1px solid var(--menu-border);
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      padding: 6px 0;
+      min-width: 140px;
+    }
+    .menu-item {
+      padding: 10px 16px;
+      font-size: 14px;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+    .menu-item:hover {
+      background-color: var(--menu-hover);
+    }
+    .menu-item.delete {
+      color: #e53e3e;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="add-node-btn">+ Add Server Node</button>
+
+  <div id="graph-container">
+    <div id="zoom-wrapper">
+      <svg id="links-svg"></svg>
+      <div id="nodes-container"></div>
+    </div>
+  </div>
+
+  <div id="context-menu">
+    <div class="menu-item" id="menu-edit">Edit Metrics</div>
+    <div class="menu-item delete" id="menu-delete">Delete Node</div>
+  </div>
+
+  <script>
+    // System Architecture Initial Map State
+    let nodesData = [
+      { id: "Center", title: "Core Switch", status: "CENTRAL", cpu: 15, mem: 42, statusClass: "core" },
+      { id: "Web", title: "Web Server", status: "ONLINE", cpu: 45, mem: 67, statusClass: "online" },
+      { id: "DB", title: "Database", status: "WARNING", cpu: 78, mem: 89, statusClass: "warning" },
+      { id: "Cache", title: "Cache Server", status: "OFFLINE", cpu: 23, mem: 34, statusClass: "offline" }
+    ];
+
+    let linksData = [
+      { source: "Web", target: "Center" },
+      { source: "DB", target: "Center" },
+      { source: "Cache", target: "Center" }
+    ];
+
+    let nodeCounter = 1;
+    let selectedNodeForMenu = null;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Pin core network component dynamically to viewport center coordinates
+    nodesData[0].fx = width / 2;
+    nodesData[0].fy = height / 2;
+
+    // Force Simulation setup
+    const simulation = d3.forceSimulation(nodesData)
+      .force("link", d3.forceLink(linksData).id(d => d.id).distance(320))
+      .force("charge", d3.forceManyBody().strength(-1200))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius(160));
+
+    const container = d3.select("#graph-container");
+    const zoomWrapper = d3.select("#zoom-wrapper");
+    const svg = d3.select("#links-svg");
+    const nodeContainer = d3.select("#nodes-container");
+
+    // Implement Zoom and Background Panning Functionality
+    const zoomBehavior = d3.zoom()
+      .scaleExtent([0.2, 2]) // Dynamic restriction boundaries
+      .on("zoom", (event) => {
+        const transform = event.transform;
+        // Transform the node and link wrapper globally
+        zoomWrapper.style("transform", `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`);
+        
+        // Update background visual tracking grid coordinates
+        const containerStyle = document.getElementById('graph-container').style;
+        containerStyle.setProperty('--zoom-grid-size', `${40 * transform.k}px`);
+        containerStyle.setProperty('--zoom-grid-x', `${transform.x}px`);
+        containerStyle.setProperty('--zoom-grid-y', `${transform.y}px`);
+      });
+
+    container.call(zoomBehavior);
+
+    // Dynamic Nodes & Topology Renderer
+    function updateGraph() {
+      // 1. Process SVG Paths / Network link states
+      const link = svg.selectAll(".link")
+        .data(linksData, d => `${d.source.id || d.source}-${d.target.id || d.target}`);
+
+      link.exit().remove();
+      const linkEnter = link.enter().append("line").attr("class", "link");
+      const allLinks = linkEnter.merge(link);
+
+      // 2. Process Card Elements
+      const node = nodeContainer.selectAll(".node")
+        .data(nodesData, d => d.id);
+
+      node.exit().remove();
+
+      const nodeEnter = node.enter().append("div")
+        .attr("class", "node")
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended))
+        .on("contextmenu", handleRightClick);
+
+      const allNodes = nodeEnter.merge(node);
+
+      allNodes.html(d => {
+        let cpuFill = 'fill-cpu';
+        let memFill = 'fill-mem';
+        if (d.statusClass === 'warning') { cpuFill = 'fill-danger'; memFill = 'fill-danger'; }
+        if (d.statusClass === 'offline') { cpuFill = 'fill-danger'; memFill = 'fill-mem'; }
+        if (d.statusClass === 'core') { cpuFill = 'fill-core'; memFill = 'fill-core'; }
+
+        return `
+          <div class="server-card status-${d.statusClass}">
+            <div class="card-header">
+              <div class="card-title">${d.title}</div>
+              <div class="badge badge-${d.statusClass}">${d.status}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label"><span>CPU</span><span>${d.cpu}%</span></div>
+              <div class="progress-bar"><div class="progress-fill ${cpuFill}" style="width: ${d.cpu}%"></div></div>
+            </div>
+            <div class="metric">
+              <div class="metric-label"><span>Memory</span><span>${d.mem}%</span></div>
+              <div class="progress-bar"><div class="progress-fill ${memFill}" style="width: ${d.mem}%"></div></div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-restart">Restart</button>
+              <button class="btn btn-monitor">Monitor</button>
+            </div>
+          </div>
+        `;
+      });
+
+      // Simulation engine loop event listener
+      simulation.on("tick", () => {
+        allLinks
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+
+        allNodes
+          .style("left", d => `${d.x}px`)
+          .style("top", d => `${d.y}px`);
+      });
+
+      simulation.nodes(nodesData);
+      simulation.force("link").links(linksData);
+      simulation.alpha(0.5).restart();
+    }
+
+    // Node drag handlers (accounts for scaling matrix alterations)
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event, d) {
+      // Scale mouse displacement to canvas transformation zoom factor
+      const transform = d3.zoomTransform(document.getElementById('graph-container'));
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      if (d.id !== "Center") {
+        d.fx = null;
+        d.fy = null;
+      }
+    }
+
+    // Dynamic element placement creation triggers
+    document.getElementById("add-node-btn").addEventListener("click", () => {
+      const id = "NewNode_" + nodeCounter++;
+      const newNode = {
+        id: id,
+        title: `App Node ${nodeCounter - 1}`,
+        status: "ONLINE",
+        cpu: Math.floor(Math.random() * 60) + 10,
+        mem: Math.floor(Math.random() * 50) + 30,
+        statusClass: "online",
+        x: width / 2 + (Math.random() - 0.5) * 100,
+        y: height / 2 + (Math.random() - 0.5) * 100
+      };
+
+      nodesData.push(newNode);
+      linksData.push({ source: id, target: "Center" });
+      updateGraph();
+    });
+
+    // Custom Context Menu Routing Logic
+    const contextMenu = document.getElementById("context-menu");
+
+    function handleRightClick(event, d) {
+      event.preventDefault();
+      event.stopPropagation(); // Block canvas context configurations trigger bubble loops
+      selectedNodeForMenu = d;
+      
+      contextMenu.style.display = "block";
+      contextMenu.style.left = `${event.clientX}px`;
+      contextMenu.style.top = `${event.clientY}px`;
+    }
+
+    window.addEventListener("click", () => {
+      contextMenu.style.display = "none";
+    });
+
+    document.getElementById("menu-edit").addEventListener("click", () => {
+      if (!selectedNodeForMenu) return;
+      
+      const newTitle = prompt("Enter Server Name:", selectedNodeForMenu.title);
+      const newCpu = prompt("Enter CPU Load (0-100):", selectedNodeForMenu.cpu);
+      const newMem = prompt("Enter Memory Usage (0-100):", selectedNodeForMenu.mem);
+
+      if (newTitle) selectedNodeForMenu.title = newTitle;
+      if (newCpu !== null && !isNaN(newCpu)) selectedNodeForMenu.cpu = Math.min(100, Math.max(0, parseInt(newCpu)));
+      if (newMem !== null && !isNaN(newMem)) selectedNodeForMenu.mem = Math.min(100, Math.max(0, parseInt(newMem)));
+
+      if (selectedNodeForMenu.id !== "Center") {
+        if (selectedNodeForMenu.cpu > 85 || selectedNodeForMenu.mem > 85) {
+          selectedNodeForMenu.status = "WARNING";
+          selectedNodeForMenu.statusClass = "warning";
+        } else {
+          selectedNodeForMenu.status = "ONLINE";
+          selectedNodeForMenu.statusClass = "online";
+        }
+      }
+
+      updateGraph();
+    });
+
+    document.getElementById("menu-delete").addEventListener("click", () => {
+      if (!selectedNodeForMenu) return;
+      if (selectedNodeForMenu.id === "Center") {
+        alert("The Central Switch cannot be deleted.");
+        return;
+      }
+
+      nodesData = nodesData.filter(n => n.id !== selectedNodeForMenu.id);
+      linksData = linksData.filter(l => l.source.id !== selectedNodeForMenu.id && l.target.id !== selectedNodeForMenu.id);
+      
+      updateGraph();
+    });
+
+    // Run Initial Generator Map Render
+    updateGraph();
+
+    window.addEventListener('resize', () => {
+      if (nodesData[0]) {
+        nodesData[0].fx = window.innerWidth / 2;
+        nodesData[0].fy = window.innerHeight / 2;
+      }
+      simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+      simulation.alpha(0.3).restart();
+    });
+  </script>
+</body>
+</html>
