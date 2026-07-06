@@ -96,6 +96,26 @@ def _run_update_apply(info, extra_exclude=None):
 
 app = Flask(__name__)
 
+
+def _load_secret_key():
+    env_path = None
+    for base in [Path(__file__).resolve().parent, Path(__file__).resolve().parents[1]]:
+        candidate = base / ".env"
+        if candidate.exists():
+            env_path = candidate
+            break
+    if env_path is None:
+        env_path = Path(__file__).resolve().parent / ".env"
+
+    load_dotenv(env_path, override=False)
+    return (
+        os.getenv("SECRET_KEY")
+        or os.getenv("FLASK_SECRET_KEY")
+        or os.getenv("KEY")
+        or "super_secret_development_key"
+    )
+
+
 # --- auth decorator defined early so routes can use it safely
 def login_required(f):
     @wraps(f)
@@ -271,7 +291,9 @@ def require_owner():
 init_main_logs(app, require_owner_func=require_owner)
 
 # Crucial for sessions to work. In production, change this to a secure random string!
-app.secret_key = "super_secret_development_key" 
+secret_key = _load_secret_key()
+app.secret_key = secret_key
+app.config["SECRET_KEY"] = secret_key
 # Allow credentials (cookies/sessions) across origins if needed
 CORS(app, supports_credentials=True)
 world_path=None

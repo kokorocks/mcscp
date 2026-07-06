@@ -42,8 +42,6 @@ Fixed by:
 
 import os
 import io
-import re
-import signal
 import sys
 import json
 import time
@@ -190,142 +188,6 @@ def _to_git_url(repo):
     return f"https://github.com/{repo}.git"
 
 
-def _current_pid_listening_ports():
-    """Return the set of local TCP ports currently owned by this process."""
-    pids = set()
-    try:
-        self_pid = os.getpid()
-        if sys.platform.startswith("win"):
-            output = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL)
-            for line in output.splitlines():
-                parts = re.split(r"\s+", line.strip())
-                if len(parts) < 5 or parts[0].upper() != "TCP":
-                    continue
-                local = parts[1]
-                state = parts[3]
-                pid = parts[-1]
-                if state != "LISTENING":
-                    continue
-                if int(pid) != self_pid:
-                    continue
-                port = local.rsplit(":", 1)[-1]
-                if port.isdigit():
-                    pids.add(int(port))
-        else:
-            output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
-            for line in output.splitlines():
-                if "LISTEN" not in line:
-                    continue
-                match = re.search(r"pid=(\d+),", line)
-                if not match:
-                    continue
-                pid = int(match.group(1))
-                if pid != self_pid:
-                    continue
-                local_match = re.search(r"\S+:(\d+)\s", line)
-                if local_match:
-                    pids.add(int(local_match.group(1)))
-    except Exception:
-        pass
-    return pids
-
-
-def _get_restart_ports():
-    ports = []
-    try:
-        port = int(os.environ.get('PORT', '5000'))
-    except Exception:
-        port = 5000
-    ports.append(port)
-    if port == 5000:
-        ports.append(5001)
-    return ports
-
-
-def _find_pids_listening_on_port(port):
-    pids = set()
-    try:
-        if sys.platform.startswith("win"):
-            output = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL)
-            for line in output.splitlines():
-                parts = re.split(r"\s+", line.strip())
-                if len(parts) < 5 or parts[0].upper() != "TCP":
-                    continue
-                local = parts[1]
-                state = parts[3]
-                pid = parts[-1]
-                if state != "LISTENING":
-                    continue
-                if not re.search(fr"[:\.]{port}$", local):
-                    continue
-                try:
-                    pids.add(int(pid))
-                except ValueError:
-                    continue
-        else:
-            try:
-                output = subprocess.check_output([
-                    "lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"
-                ], text=True, stderr=subprocess.DEVNULL)
-                for line in output.splitlines()[1:]:
-                    parts = line.split()
-                    if len(parts) < 2:
-                        continue
-                    try:
-                        pids.add(int(parts[1]))
-                    except ValueError:
-                        continue
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                try:
-                    output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
-                    for line in output.splitlines():
-                        if "LISTEN" not in line:
-                            continue
-                        if f":{port}" not in line:
-                            continue
-                        match = re.search(r"pid=(\d+),", line)
-                        if match:
-                            pids.add(int(match.group(1)))
-                except (FileNotFoundError, subprocess.CalledProcessError):
-                    pass
-    except Exception:
-        pass
-    return pids
-
-
-def _kill_process(pid):
-    if pid == os.getpid():
-        return False
-    try:
-        if sys.platform.startswith("win"):
-            subprocess.check_call([
-                "taskkill", "/F", "/PID", str(pid)
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            os.kill(pid, signal.SIGTERM)
-        return True
-    except Exception:
-        return False
-
-
-def _force_close_port_processes(port):
-    pids = _find_pids_listening_on_port(port)
-    killed = []
-    for pid in pids:
-        if pid == os.getpid():
-            continue
-        if _kill_process(pid):
-            killed.append(pid)
-    return killed
-
-
-def _shutdown_conflicting_port_users():
-    for port in _get_restart_ports():
-        killed = _force_close_port_processes(port)
-        if killed:
-            print(f"[UPDATER] Force-closed process(es) on port {port}: {', '.join(map(str, killed))}")
-
-
 def _set_update_state(**kwargs):
     update_state.update(kwargs)
 
@@ -372,11 +234,6 @@ def restart_app():
         if remaining <= 0:
             break
         t.join(timeout=remaining)
-
-    # If there is an existing process listening on the web UI port(s), force
-    # close it before spawning the replacement. This helps avoid cases where
-    # a stale process or a hung restart leaves the port occupied.
-    _shutdown_conflicting_port_users()
 
     # Spawn a fresh, independent process with the same interpreter/args.
     # start_new_session detaches it from this process's session so it

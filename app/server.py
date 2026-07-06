@@ -212,7 +212,7 @@ def require_owner():
 init_main_logs(app, require_owner_func=require_owner)
 
 # Crucial for sessions to work. In production, change this to a secure random string!
-app.secret_key = os.getenv("KEY")#"super_secret_development_key" 
+app.secret_key = "testesttest"#os.getenv("KEY")#"super_secret_development_key" 
 # Allow credentials (cookies/sessions) across origins if needed
 CORS(app, supports_credentials=True)
 world_path=None
