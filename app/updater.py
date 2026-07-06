@@ -171,7 +171,7 @@ def restart_app():
     # Flush stdout/stderr to ensure logs aren't lost
     sys.stdout.flush()
     sys.stderr.flush()
-    
+    time.sleep(3)
     # Re-execute the script using the exact same arguments
     os.execl(sys.executable, sys.executable, *sys.argv)
 
