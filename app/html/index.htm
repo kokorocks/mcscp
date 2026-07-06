@@ -948,9 +948,7 @@ button {
     </div>
 
     <script>
-//alert("updated now forever yes")
 const API = window.location.origin;
-//alert(API)
 let stopping = []
 let servers = [];
 //let update = false
@@ -1011,7 +1009,8 @@ async function loadServers() {
 
 async function updatefunc() {
     const res = await fetch(API + "/servers");
-    return await res.json().update;
+    const data = await res.json();
+    return Boolean(data && data.update);
 }
 
 
@@ -1394,11 +1393,12 @@ async function loadUser() {
 
         window.currentUser = data;
 
-    if(updatefunc() && window.currentUser.role === "owner"){
-        if(confirm('Do you want to update to the latest server version')){
-            location.href = '/update'
+        const hasUpdate = await updatefunc();
+        if (hasUpdate && window.currentUser.role === "owner") {
+            if (confirm('Do you want to update to the latest server version')) {
+                location.href = '/update'
+            }
         }
-    }
 
     } catch (err) {
         console.error("Failed to load user:", err);

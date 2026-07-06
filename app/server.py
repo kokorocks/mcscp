@@ -18,7 +18,7 @@ from functools import wraps
 import base64, socket
 from pathlib import Path
 from main_logs import init_main_logs
-
+from dotenv import load_dotenv
 import updater
 
 
@@ -212,7 +212,7 @@ def require_owner():
 init_main_logs(app, require_owner_func=require_owner)
 
 # Crucial for sessions to work. In production, change this to a secure random string!
-app.secret_key = "super_secret_development_key" 
+app.secret_key = os.getenv("KEY")#"super_secret_development_key" 
 # Allow credentials (cookies/sessions) across origins if needed
 CORS(app, supports_credentials=True)
 world_path=None

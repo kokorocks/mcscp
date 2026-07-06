@@ -10,6 +10,20 @@ venv/
 logs/
 *.log
 
+.update_state.json
+
+temp-update-test/
+
+create-server-test.py
+
+updates/
+
+tests/
+
+backups/
+
+.env
+
 # Generated server data and uploads
 minecraft_servers/
 server-imgs/

@@ -4,3 +4,4 @@ werkzeug
 requests
 pillow
 flask-sock
+python-dotenv
