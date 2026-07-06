@@ -245,8 +245,7 @@ def trigger_update():
                         update_state['message'] = 'Update applied; restarting'
                         UPDATE = False
                         try:
-                            import sys
-                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                            updater.restart_app()
                         except Exception:
                             pass
                 finally:
@@ -379,8 +378,7 @@ def _start_update_scheduler():
                         update_state['message'] = 'Update applied; restarting'
                         UPDATE = False
                         try:
-                            import sys
-                            os.execv(sys.executable, [sys.executable] + sys.argv)
+                            updater.restart_app()
                         except Exception:
                             pass
                 finally:
@@ -1631,8 +1629,7 @@ def update():
                     update_state['message'] = 'Update applied; restarting'
                     UPDATE = False
                     try:
-                        import sys
-                        os.execv(sys.executable, [sys.executable] + sys.argv)
+                        updater.restart_app()
                     except Exception:
                         pass
             finally:

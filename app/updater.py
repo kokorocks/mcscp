@@ -15,15 +15,42 @@ works even on locked-down hosting.
 State (which commit is currently installed, and which repo/branch that
 came from) is kept in a small json file, `.update_state.json`, inside the
 app's own folder -- NOT in the zip, so it always survives updates.
+
+Restart behavior
+-----------------
+`restart_app()` used to call `os.execl(...)`. That replaces the process
+image but does NOT close inherited file descriptors -- so the old Flask
+listening socket on the configured port stayed open across the exec,
+and the "new" process would immediately fail with "Address already in
+use" (colliding with itself). On top of that, background daemon threads
+(the update notifier/scheduler, autostart watchers, etc.) had no way to
+be told "we're restarting" and kept running/printing right up to the
+moment the interpreter tore itself down, which is what caused the
+`_enter_buffered_busy` fatal error / core dump at shutdown.
+
+Fixed by:
+  1. A module-level `threading.Event` (`SHUTDOWN_EVENT`) that every
+     background loop checks each iteration and exits promptly when set.
+  2. `restart_app()` now sets that event, gives threads a brief window
+     to exit, then spawns a brand-new detached process with
+     `subprocess.Popen` and calls `os._exit(0)` on the current one.
+     `os._exit` skips further Python-level cleanup/thread-join races
+     and guarantees the old process (and its sockets) actually goes
+     away, while the new process starts with a clean fd table instead
+     of inheriting anything from the old one.
 """
 
 import os
 import io
+import re
+import signal
+import sys
 import json
 import time
 import shutil
 import zipfile
 import threading
+import subprocess
 from pathlib import Path
 import requests
 
@@ -32,6 +59,14 @@ STATE_FILENAME = ".update_state.json"
 UPDATE = False
 UPDATING = False
 update_state = {"status": "idle", "last": None, "details": None}
+
+# Signaled by restart_app() so all background loops can stop cleanly
+# instead of racing the interpreter shutdown / getting killed mid-write.
+SHUTDOWN_EVENT = threading.Event()
+
+# How long restart_app() waits for background threads to notice
+# SHUTDOWN_EVENT and exit before it spawns the new process anyway.
+RESTART_GRACE_SECONDS = float(os.environ.get('RESTART_GRACE_SECONDS', '5'))
 
 # Git-based updater configuration
 GIT_REPO_URL = os.environ.get('GIT_REPO_URL') or os.environ.get('GITHUB_REPO') or "kokorocks/mcscp"
@@ -155,25 +190,217 @@ def _to_git_url(repo):
     return f"https://github.com/{repo}.git"
 
 
+def _current_pid_listening_ports():
+    """Return the set of local TCP ports currently owned by this process."""
+    pids = set()
+    try:
+        self_pid = os.getpid()
+        if sys.platform.startswith("win"):
+            output = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                parts = re.split(r"\s+", line.strip())
+                if len(parts) < 5 or parts[0].upper() != "TCP":
+                    continue
+                local = parts[1]
+                state = parts[3]
+                pid = parts[-1]
+                if state != "LISTENING":
+                    continue
+                if int(pid) != self_pid:
+                    continue
+                port = local.rsplit(":", 1)[-1]
+                if port.isdigit():
+                    pids.add(int(port))
+        else:
+            output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                if "LISTEN" not in line:
+                    continue
+                match = re.search(r"pid=(\d+),", line)
+                if not match:
+                    continue
+                pid = int(match.group(1))
+                if pid != self_pid:
+                    continue
+                local_match = re.search(r"\S+:(\d+)\s", line)
+                if local_match:
+                    pids.add(int(local_match.group(1)))
+    except Exception:
+        pass
+    return pids
+
+
+def _get_restart_ports():
+    ports = []
+    try:
+        port = int(os.environ.get('PORT', '5000'))
+    except Exception:
+        port = 5000
+    ports.append(port)
+    if port == 5000:
+        ports.append(5001)
+    return ports
+
+
+def _find_pids_listening_on_port(port):
+    pids = set()
+    try:
+        if sys.platform.startswith("win"):
+            output = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                parts = re.split(r"\s+", line.strip())
+                if len(parts) < 5 or parts[0].upper() != "TCP":
+                    continue
+                local = parts[1]
+                state = parts[3]
+                pid = parts[-1]
+                if state != "LISTENING":
+                    continue
+                if not re.search(fr"[:\.]{port}$", local):
+                    continue
+                try:
+                    pids.add(int(pid))
+                except ValueError:
+                    continue
+        else:
+            try:
+                output = subprocess.check_output([
+                    "lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"
+                ], text=True, stderr=subprocess.DEVNULL)
+                for line in output.splitlines()[1:]:
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    try:
+                        pids.add(int(parts[1]))
+                    except ValueError:
+                        continue
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                try:
+                    output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
+                    for line in output.splitlines():
+                        if "LISTEN" not in line:
+                            continue
+                        if f":{port}" not in line:
+                            continue
+                        match = re.search(r"pid=(\d+),", line)
+                        if match:
+                            pids.add(int(match.group(1)))
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    pass
+    except Exception:
+        pass
+    return pids
+
+
+def _kill_process(pid):
+    if pid == os.getpid():
+        return False
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.check_call([
+                "taskkill", "/F", "/PID", str(pid)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            os.kill(pid, signal.SIGTERM)
+        return True
+    except Exception:
+        return False
+
+
+def _force_close_port_processes(port):
+    pids = _find_pids_listening_on_port(port)
+    killed = []
+    for pid in pids:
+        if pid == os.getpid():
+            continue
+        if _kill_process(pid):
+            killed.append(pid)
+    return killed
+
+
+def _shutdown_conflicting_port_users():
+    for port in _get_restart_ports():
+        killed = _force_close_port_processes(port)
+        if killed:
+            print(f"[UPDATER] Force-closed process(es) on port {port}: {', '.join(map(str, killed))}")
+
+
 def _set_update_state(**kwargs):
     update_state.update(kwargs)
 
 
-#def _restart_app():
-    #import sys
-    #os.execv(sys.executable, [sys.executable] + sys.argv)
-
 def restart_app():
-    import sys
-    """Flushes outputs and replaces the current process with a new one."""
+    """
+    Cleanly restart the process.
+
+    Sets SHUTDOWN_EVENT so any well-behaved background loop (see
+    start_update_notifier / start_update_scheduler / anything else that
+    checks SHUTDOWN_EVENT.is_set()) stops on its own, waits briefly for
+    that to happen, then spawns a brand-new independent process and
+    hard-exits the current one with os._exit().
+
+    We deliberately do NOT use os.execl() here: exec() does not close
+    inherited file descriptors, so a listening socket (e.g. the Flask
+    dev server's port) stays open and bound in the "new" process image,
+    causing the next bind() to fail with "Address already in use"
+    against itself. Spawning a genuinely new process guarantees a clean
+    fd table, and os._exit() skips Python's normal interpreter
+    finalization/thread-join path, which is what was racing daemon
+    threads still writing to stdout and crashing with
+    `_enter_buffered_busy`.
+    """
     print("Restarting application...")
-    
-    # Flush stdout/stderr to ensure logs aren't lost
-    sys.stdout.flush()
-    sys.stderr.flush()
-    time.sleep(3)
-    # Re-execute the script using the exact same arguments
-    os.execl(sys.executable, sys.executable, *sys.argv)
+
+    # Tell every SHUTDOWN_EVENT-aware background loop to stop.
+    SHUTDOWN_EVENT.set()
+
+    # Flush stdout/stderr to ensure logs aren't lost.
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+    # Give background threads a short window to actually exit instead of
+    # a fixed blind sleep -- still bounded by RESTART_GRACE_SECONDS.
+    deadline = time.time() + RESTART_GRACE_SECONDS
+    for t in threading.enumerate():
+        if t is threading.current_thread():
+            continue
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        t.join(timeout=remaining)
+
+    # If there is an existing process listening on the web UI port(s), force
+    # close it before spawning the replacement. This helps avoid cases where
+    # a stale process or a hung restart leaves the port occupied.
+    _shutdown_conflicting_port_users()
+
+    # Spawn a fresh, independent process with the same interpreter/args.
+    # start_new_session detaches it from this process's session so it
+    # isn't affected by (or blocking) this process's teardown.
+    try:
+        subprocess.Popen(
+            [sys.executable] + sys.argv,
+            cwd=os.getcwd(),
+            close_fds=True,
+            start_new_session=True,
+        )
+    except Exception as exc:
+        print(f"Failed to spawn replacement process: {exc}")
+        # Fall back to exec in the worst case -- better than not
+        # restarting at all, even though it has the fd caveat above.
+        os.execl(sys.executable, sys.executable, *sys.argv)
+        return
+
+    # Give the new process a moment to bind its port before this one
+    # releases its own sockets, then hard-exit without running normal
+    # interpreter finalization (avoids the daemon-thread/stdout race).
+    time.sleep(1)
+    os._exit(0)
+
 
 def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback=None,
                     initial_message='Checking for updates', mark_updating=True):
@@ -287,10 +514,10 @@ def start_update_notifier():
     """Background check-only notifier that updates UPDATE based on remote state."""
     def loop():
         global UPDATE
-        while True:
+        while not SHUTDOWN_EVENT.is_set():
             try:
                 if UPDATING:
-                    time.sleep(10)
+                    SHUTDOWN_EVENT.wait(10)
                     continue
                 info = check_for_git_update(
                     _to_git_url(GIT_REPO_URL),
@@ -302,7 +529,10 @@ def start_update_notifier():
                 UPDATE = (info.get('status') in ('update_available', 'cloned'))
             except Exception as exc:
                 update_state['check_error'] = str(exc)
-            time.sleep(UPDATE_CHECK_INTERVAL)
+            # wait() returns early (and loop re-checks the condition)
+            # as soon as SHUTDOWN_EVENT is set, instead of sleeping the
+            # full interval regardless.
+            SHUTDOWN_EVENT.wait(UPDATE_CHECK_INTERVAL)
 
     threading.Thread(target=loop, daemon=True).start()
 
@@ -326,11 +556,11 @@ def start_update_scheduler():
         interval = 3600
 
     def loop():
-        while True:
+        while not SHUTDOWN_EVENT.is_set():
             try:
                 global UPDATE, UPDATING
                 if UPDATING:
-                    time.sleep(10)
+                    SHUTDOWN_EVENT.wait(10)
                     continue
 
                 _set_update_state(status='checking', progress=5, message='Checking for updates')
@@ -347,7 +577,7 @@ def start_update_scheduler():
                 if info['status'] == 'up_to_date':
                     _set_update_state(status='up_to_date', message='Already up to date', progress=100)
                     UPDATE = False
-                    time.sleep(interval)
+                    SHUTDOWN_EVENT.wait(interval)
                     continue
 
                 UPDATE = True
@@ -373,7 +603,15 @@ def start_update_scheduler():
                         update_state['message'] = 'Update applied; restarting'
                         UPDATE = False
                         try:
-                            _restart_app()
+                            # NOTE: this used to call `_restart_app()`, a
+                            # name that doesn't exist in this module
+                            # (only the un-underscored `restart_app` is
+                            # defined) -- that call was silently
+                            # swallowed by the except below, so
+                            # AUTO_UPDATE never actually restarted the
+                            # app after applying an update. Fixed to
+                            # call the real function.
+                            restart_app()
                         except Exception:
                             pass
                 finally:
@@ -381,7 +619,7 @@ def start_update_scheduler():
             except Exception as exc:
                 update_state['status'] = 'error'
                 update_state['details'] = str(exc)
-            time.sleep(interval)
+            SHUTDOWN_EVENT.wait(interval)
 
     threading.Thread(target=loop, daemon=True).start()
 

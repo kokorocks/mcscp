@@ -195,7 +195,7 @@ def trigger_update():
             repo=repo,
             branch=branch,
             extra_exclude=extra_exclude,
-            restart_callback=lambda: os.execv(sys.executable, [sys.executable] + sys.argv),
+            restart_callback=updater.restart_app,
         )
         return jsonify(payload), status_code
 
@@ -1431,7 +1431,7 @@ def update():
         repo=GIT_REPO_URL,
         branch=GIT_BRANCH,
         extra_exclude=[],
-        restart_callback=lambda: os.execv(sys.executable, [sys.executable] + sys.argv),
+        restart_callback=updater.restart_app,
     ))
     
 
