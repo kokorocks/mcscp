@@ -159,10 +159,21 @@ def _set_update_state(**kwargs):
     update_state.update(kwargs)
 
 
-def _restart_app():
-    import sys
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+#def _restart_app():
+    #import sys
+    #os.execv(sys.executable, [sys.executable] + sys.argv)
 
+def restart_app():
+    import sys
+    """Flushes outputs and replaces the current process with a new one."""
+    print("Restarting application...")
+    
+    # Flush stdout/stderr to ensure logs aren't lost
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
+    # Re-execute the script using the exact same arguments
+    os.execl(sys.executable, sys.executable, *sys.argv)
 
 def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback=None,
                     initial_message='Checking for updates', mark_updating=True):
