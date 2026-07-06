@@ -1350,34 +1350,26 @@ def listen_for_join(sid, port):
     stop_flag = threading.Event()
     listener_stop_flags[sid] = stop_flag
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", port))
-    sock.listen(5)
-    sock.settimeout(1)
-
-    listener_sockets[sid] = sock
-
-    print(f"[AUTOSTART] Listening on {port}")
+    print(f"[AUTOSTART] Watching port {port} for server {sid}")
 
     while not stop_flag.is_set():
+        if str(sid) in processes:
+            break
+
         try:
-            conn, addr = sock.accept()
-
-            print(f"[AUTOSTART] Connection from {addr}")
-
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                break
+        except OSError:
             if str(sid) not in processes:
+                print(f"[AUTOSTART] Port {port} is closed; starting server {sid}")
                 start_server(sid)
 
-            conn.close()
+            time.sleep(5)
 
-        except socket.timeout:
-            continue
+    listener_stop_flags.pop(sid, None)
+    listener_sockets.pop(sid, None)
 
-    sock.close()
-    
 
-        
 def start_autostart_listeners():
 
     referesh_list()
@@ -1388,6 +1380,9 @@ def start_autostart_listeners():
             "auto-start-on-join",
             False
         ):
+            continue
+
+        if str(sid) in processes:
             continue
 
         port = int(server["port"])
