@@ -8,9 +8,8 @@ knows about:
     apply_git_update(local_path, remote_sha, branch, backup_root, exclude, preserve)
 
 Internally it no longer uses `git` at all -- it downloads the branch as a
-zipball from GitHub (like the second script you pasted) and copies files
-into place itself. That means the host doesn't need git installed and
-works even on locked-down hosting.
+zipball from GitHub and copies files into place itself. That means the
+host doesn't need git installed and works even on locked-down hosting.
 
 State (which commit is currently installed, and which repo/branch that
 came from) is kept in a small json file, `.update_state.json`, inside the
@@ -18,30 +17,48 @@ app's own folder -- NOT in the zip, so it always survives updates.
 
 Restart behavior
 -----------------
-`restart_app()` used to call `os.execl(...)`. That replaces the process
-image but does NOT close inherited file descriptors -- so the old Flask
-listening socket on the configured port stayed open across the exec,
-and the "new" process would immediately fail with "Address already in
-use" (colliding with itself). On top of that, background daemon threads
-(the update notifier/scheduler, autostart watchers, etc.) had no way to
-be told "we're restarting" and kept running/printing right up to the
-moment the interpreter tore itself down, which is what caused the
-`_enter_buffered_busy` fatal error / core dump at shutdown.
+`restart_app()` used to call `os.execl(...)`, which doesn't close
+inherited file descriptors, so the old listening socket stayed bound
+across the exec and the "new" process instantly failed with "Address
+already in use" against itself.
 
-Fixed by:
-  1. A module-level `threading.Event` (`SHUTDOWN_EVENT`) that every
-     background loop checks each iteration and exits promptly when set.
-  2. `restart_app()` now sets that event, gives threads a brief window
-     to exit, then spawns a brand-new detached process with
-     `subprocess.Popen` and calls `os._exit(0)` on the current one.
-     `os._exit` skips further Python-level cleanup/thread-join races
-     and guarantees the old process (and its sockets) actually goes
-     away, while the new process starts with a clean fd table instead
-     of inheriting anything from the old one.
+That was replaced with: set a shutdown event so background threads stop
+promptly, spawn a brand-new process, sleep ~1s, then os._exit(0). That
+fixed the exec problem but introduced a *different* race: the new
+process gets spawned (and can start its own port check / bind almost
+immediately) while the OLD process is still alive and still holding the
+port for that entire sleep window. A fixed sleep can't reliably
+guarantee the old process is gone by the time the new one tries to
+bind -- sometimes it is, sometimes it isn't.
+
+Current fix: instead of spawning the replacement directly, spawn a tiny
+detached watcher (a shell one-liner on POSIX, PowerShell on Windows)
+that polls for THIS process's PID to actually disappear, and only then
+launches the replacement. The current process then exits immediately
+(no blind sleep needed). This guarantees the port is actually free
+before anything tries to bind it again, instead of hoping a fixed delay
+was long enough.
+
+State-file race
+----------------
+`check_for_git_update` is conceptually read-only, but it used to
+re-save the *entire* state dict it had loaded (just to persist
+repo_url/branch). The background notifier calls this on its own timer
+with no locking. If that overlapped with an apply that had just written
+a new "sha" to disk, the notifier's save (using its older in-memory
+copy) could clobber that "sha" back to the old value -- so the app would
+keep reporting "update available" forever even though the installed
+files were already current, while a one-off manual check (not racing
+anything) would correctly report "up to date". Fixed with a lock and a
+read-modify-write helper that always merges into a freshly-read copy of
+the file instead of blind-overwriting it.
 """
 
 import os
 import io
+import re
+import shlex
+import signal
 import sys
 import json
 import time
@@ -54,6 +71,12 @@ import requests
 
 STATE_FILENAME = ".update_state.json"
 
+# Guards every read-modify-write of the on-disk state file. Without this,
+# a background check (which re-saves the whole state dict just to record
+# repo_url/branch) can race with an apply's write of a new "sha" and
+# clobber it back to the old value -- see module docstring.
+_STATE_LOCK = threading.Lock()
+
 UPDATE = False
 UPDATING = False
 update_state = {"status": "idle", "last": None, "details": None}
@@ -63,7 +86,7 @@ update_state = {"status": "idle", "last": None, "details": None}
 SHUTDOWN_EVENT = threading.Event()
 
 # How long restart_app() waits for background threads to notice
-# SHUTDOWN_EVENT and exit before it spawns the new process anyway.
+# SHUTDOWN_EVENT and exit before it moves on to the actual restart.
 RESTART_GRACE_SECONDS = float(os.environ.get('RESTART_GRACE_SECONDS', '5'))
 
 # Git-based updater configuration
@@ -129,6 +152,25 @@ def _save_state(local_path, state):
         pass
 
 
+def _update_persisted_state(local_path, **updates):
+    """
+    Atomically merge `updates` into the on-disk state file.
+
+    Always re-reads the file right before writing, under `_STATE_LOCK`,
+    so a check running concurrently with an apply (or two checks
+    racing each other) can never clobber a field -- like "sha" -- that
+    the other one just wrote. This replaces the old pattern of loading
+    the whole state dict once and blindly re-saving that same snapshot
+    later, which could silently revert a just-applied commit sha back
+    to the previous one. See module docstring.
+    """
+    with _STATE_LOCK:
+        state = _load_state(local_path)
+        state.update(updates)
+        _save_state(local_path, state)
+        return state
+
+
 def _github_headers():
     headers = {
         "Accept": "application/vnd.github+json",
@@ -188,6 +230,145 @@ def _to_git_url(repo):
     return f"https://github.com/{repo}.git"
 
 
+def _get_restart_ports():
+    ports = []
+    try:
+        port = int(os.environ.get('PORT', '5000'))
+    except Exception:
+        port = 5000
+    ports.append(port)
+    if port == 5000:
+        ports.append(5001)
+    return ports
+
+
+def _find_pids_listening_on_port(port):
+    pids = set()
+    try:
+        if sys.platform.startswith("win"):
+            output = subprocess.check_output(["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                parts = re.split(r"\s+", line.strip())
+                if len(parts) < 5 or parts[0].upper() != "TCP":
+                    continue
+                local = parts[1]
+                state = parts[3]
+                pid = parts[-1]
+                if state != "LISTENING":
+                    continue
+                if not re.search(fr"[:\.]{port}$", local):
+                    continue
+                try:
+                    pids.add(int(pid))
+                except ValueError:
+                    continue
+        else:
+            try:
+                output = subprocess.check_output([
+                    "lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"
+                ], text=True, stderr=subprocess.DEVNULL)
+                for line in output.splitlines()[1:]:
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    try:
+                        pids.add(int(parts[1]))
+                    except ValueError:
+                        continue
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                try:
+                    output = subprocess.check_output(["ss", "-ltnp"], text=True, stderr=subprocess.DEVNULL)
+                    for line in output.splitlines():
+                        if "LISTEN" not in line:
+                            continue
+                        if f":{port}" not in line:
+                            continue
+                        match = re.search(r"pid=(\d+),", line)
+                        if match:
+                            pids.add(int(match.group(1)))
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    pass
+    except Exception:
+        pass
+    return pids
+
+
+def _kill_process(pid):
+    if pid == os.getpid():
+        return False
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.check_call([
+                "taskkill", "/F", "/PID", str(pid)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            os.kill(pid, signal.SIGTERM)
+        return True
+    except Exception:
+        return False
+
+
+def _force_close_port_processes(port):
+    """
+    Kill any *other* stray process holding `port` -- e.g. an orphan left
+    over from a previous bad restart. Deliberately never touches our own
+    PID: this process's own listening socket is released by exiting (see
+    restart_app / _spawn_restart_watcher), not by killing ourselves here.
+    """
+    pids = _find_pids_listening_on_port(port)
+    killed = []
+    for pid in pids:
+        if pid == os.getpid():
+            continue
+        if _kill_process(pid):
+            killed.append(pid)
+    return killed
+
+
+def _shutdown_conflicting_port_users():
+    for port in _get_restart_ports():
+        killed = _force_close_port_processes(port)
+        if killed:
+            print(f"[UPDATER] Force-closed process(es) on port {port}: {', '.join(map(str, killed))}")
+
+
+def _spawn_restart_watcher(old_pid, args):
+    """
+    Launch a tiny detached watcher that waits for `old_pid` (this
+    process) to actually exit -- and therefore actually release its
+    listening socket(s) -- before starting the replacement process.
+
+    This is the piece that was missing before: spawning the replacement
+    immediately and then sleeping a fixed amount before exiting cannot
+    guarantee the old process is gone by the time the new one tries to
+    bind the port. Polling for the PID to disappear guarantees the
+    ordering instead of hoping a delay was long enough.
+    """
+    if sys.platform.startswith("win"):
+        arg_list = ", ".join(f"'{a}'" for a in args[1:])
+        cmd = (
+            f"while (Get-Process -Id {old_pid} -ErrorAction SilentlyContinue) "
+            f"{{ Start-Sleep -Milliseconds 200 }}; "
+            f"Start-Process -FilePath '{args[0]}' -ArgumentList {arg_list}"
+        )
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", cmd],
+            close_fds=True,
+        )
+    else:
+        quoted_args = " ".join(shlex.quote(a) for a in args)
+        cmd = (
+            f"while kill -0 {old_pid} 2>/dev/null; do sleep 0.2; done; "
+            f"exec {quoted_args}"
+        )
+        subprocess.Popen(
+            ["/bin/sh", "-c", cmd],
+            cwd=os.getcwd(),
+            close_fds=True,
+            start_new_session=True,
+        )
+
+
 def _set_update_state(**kwargs):
     update_state.update(kwargs)
 
@@ -196,21 +377,18 @@ def restart_app():
     """
     Cleanly restart the process.
 
-    Sets SHUTDOWN_EVENT so any well-behaved background loop (see
-    start_update_notifier / start_update_scheduler / anything else that
-    checks SHUTDOWN_EVENT.is_set()) stops on its own, waits briefly for
-    that to happen, then spawns a brand-new independent process and
-    hard-exits the current one with os._exit().
+    Sets SHUTDOWN_EVENT so any well-behaved background loop stops on its
+    own, waits briefly for that, force-closes any *other* stray process
+    still squatting on the restart port(s), then hands off to a detached
+    watcher that waits for THIS process to actually die before starting
+    the replacement -- and finally exits immediately.
 
-    We deliberately do NOT use os.execl() here: exec() does not close
-    inherited file descriptors, so a listening socket (e.g. the Flask
-    dev server's port) stays open and bound in the "new" process image,
-    causing the next bind() to fail with "Address already in use"
-    against itself. Spawning a genuinely new process guarantees a clean
-    fd table, and os._exit() skips Python's normal interpreter
-    finalization/thread-join path, which is what was racing daemon
-    threads still writing to stdout and crashing with
-    `_enter_buffered_busy`.
+    We do NOT spawn the replacement directly and then sleep-then-exit:
+    that left a window where both the old and new process were alive
+    and fighting over the same port. We also do NOT use os.execl():
+    exec() doesn't close inherited file descriptors, so the listening
+    socket would stay bound across the exec and the "new" process would
+    immediately fail to bind against itself.
     """
     print("Restarting application...")
 
@@ -235,27 +413,28 @@ def restart_app():
             break
         t.join(timeout=remaining)
 
-    # Spawn a fresh, independent process with the same interpreter/args.
-    # start_new_session detaches it from this process's session so it
-    # isn't affected by (or blocking) this process's teardown.
-    try:
-        subprocess.Popen(
-            [sys.executable] + sys.argv,
-            cwd=os.getcwd(),
-            close_fds=True,
-            start_new_session=True,
-        )
-    except Exception as exc:
-        print(f"Failed to spawn replacement process: {exc}")
-        # Fall back to exec in the worst case -- better than not
-        # restarting at all, even though it has the fd caveat above.
-        os.execl(sys.executable, sys.executable, *sys.argv)
-        return
+    # Clean up any *other* stray process left over from a previous bad
+    # restart. Never touches our own PID -- our own port is released by
+    # this process actually exiting below, not by killing ourselves here.
+    _shutdown_conflicting_port_users()
 
-    # Give the new process a moment to bind its port before this one
-    # releases its own sockets, then hard-exit without running normal
-    # interpreter finalization (avoids the daemon-thread/stdout race).
-    time.sleep(1)
+    old_pid = os.getpid()
+    args = [sys.executable] + sys.argv
+
+    try:
+        _spawn_restart_watcher(old_pid, args)
+    except Exception as exc:
+        print(f"Failed to spawn restart watcher: {exc}")
+        try:
+            subprocess.Popen(args, cwd=os.getcwd(), close_fds=True, start_new_session=True)
+        except Exception:
+            os.execl(sys.executable, sys.executable, *sys.argv)
+            return
+
+    # Exit immediately. The watcher is polling for exactly this PID to
+    # disappear before it launches the replacement, so there's no need
+    # (and no benefit) to sleep here first -- doing so would just widen
+    # the window during which nothing is serving the port for no reason.
     os._exit(0)
 
 
@@ -460,14 +639,6 @@ def start_update_scheduler():
                         update_state['message'] = 'Update applied; restarting'
                         UPDATE = False
                         try:
-                            # NOTE: this used to call `_restart_app()`, a
-                            # name that doesn't exist in this module
-                            # (only the un-underscored `restart_app` is
-                            # defined) -- that call was silently
-                            # swallowed by the except below, so
-                            # AUTO_UPDATE never actually restarted the
-                            # app after applying an update. Fixed to
-                            # call the real function.
                             restart_app()
                         except Exception:
                             pass
@@ -488,21 +659,24 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
     """
     Look up the latest commit on GitHub for `branch` and compare it against
     what's currently installed. Read-only -- never downloads or modifies
-    anything. Returns a dict describing the result.
+    anything (other than recording which repo/branch it checked, merged
+    in via `_update_persisted_state` so it can't clobber a concurrently
+    written "sha"). Returns a dict describing the result.
     """
     watch_files = watch_files or []
     owner, repo = _parse_owner_repo(repo_url)
 
-    state = _load_state(local_path)
+    with _STATE_LOCK:
+        state = _load_state(local_path)
     local_sha = state.get("sha")
 
     remote_sha = _get_latest_commit_sha(owner, repo, branch)
 
     # Remember which repo/branch we're tracking so apply_git_update can be
-    # called later with no arguments and still know what to fetch.
-    state["repo_url"] = repo_url
-    state["branch"] = branch
-    _save_state(local_path, state)
+    # called later with no arguments and still know what to fetch. Merged
+    # in rather than re-saving the whole dict we loaded above, so this
+    # can't race with (and revert) a concurrent apply's "sha" write.
+    _update_persisted_state(local_path, repo_url=repo_url, branch=branch)
 
     if not local_sha:
         return {
@@ -553,7 +727,8 @@ def apply_git_update(local_path, remote_sha=None, branch="main", backup_root="ba
     (one-off skip list for this run). Anything about to be overwritten is
     backed up first. Returns a dict describing the result.
     """
-    state = _load_state(local_path)
+    with _STATE_LOCK:
+        state = _load_state(local_path)
 
     if repo_url is None:
         repo_url = state.get("repo_url")
@@ -621,11 +796,17 @@ def apply_git_update(local_path, remote_sha=None, branch="main", backup_root="ba
 
             installed.append(relative_path)
 
-    state["sha"] = remote_sha
-    state["repo_url"] = repo_url
-    state["branch"] = branch
-    state["last_updated"] = time.time()
-    _save_state(local_path, state)
+    # Merge the new sha/repo_url/branch into a freshly-read copy of the
+    # state file (see _update_persisted_state) rather than saving the
+    # `state` dict we loaded at the top of this function, which could be
+    # stale by now if a check ran concurrently.
+    _update_persisted_state(
+        local_path,
+        sha=remote_sha,
+        repo_url=repo_url,
+        branch=branch,
+        last_updated=time.time(),
+    )
 
     return {
         "status": "applied",
