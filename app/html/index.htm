@@ -1394,7 +1394,7 @@ async function loadUser() {
 
         window.currentUser = data;
 
-    if(updatefunc() && window.currentUser.role === "owner"){
+    if(updatefunc() === true && window.currentUser.role === "owner"){
         if(confirm('Do you want to update to the latest server version')){
             location.href = '/update'
         }

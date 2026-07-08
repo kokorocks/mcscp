@@ -17,41 +17,44 @@ app's own folder -- NOT in the zip, so it always survives updates.
 
 Restart behavior
 -----------------
-`restart_app()` used to call `os.execl(...)`, which doesn't close
-inherited file descriptors, so the old listening socket stayed bound
-across the exec and the "new" process instantly failed with "Address
-already in use" against itself.
-
-That was replaced with: set a shutdown event so background threads stop
-promptly, spawn a brand-new process, sleep ~1s, then os._exit(0). That
-fixed the exec problem but introduced a *different* race: the new
-process gets spawned (and can start its own port check / bind almost
-immediately) while the OLD process is still alive and still holding the
-port for that entire sleep window. A fixed sleep can't reliably
-guarantee the old process is gone by the time the new one tries to
-bind -- sometimes it is, sometimes it isn't.
-
-Current fix: instead of spawning the replacement directly, spawn a tiny
-detached watcher (a shell one-liner on POSIX, PowerShell on Windows)
-that polls for THIS process's PID to actually disappear, and only then
-launches the replacement. The current process then exits immediately
-(no blind sleep needed). This guarantees the port is actually free
-before anything tries to bind it again, instead of hoping a fixed delay
-was long enough.
+`restart_app()` spawns a detached watcher that waits for THIS process's
+PID to actually exit -- and therefore actually release its listening
+socket(s) -- before starting the replacement process, then exits
+immediately. See `_spawn_restart_watcher` for the full rationale (it
+replaces both a bare `os.execl` and a "spawn then sleep(1) then exit"
+approach, both of which raced the old process's socket release against
+the new process's bind).
 
 State-file race
 ----------------
-`check_for_git_update` is conceptually read-only, but it used to
-re-save the *entire* state dict it had loaded (just to persist
-repo_url/branch). The background notifier calls this on its own timer
-with no locking. If that overlapped with an apply that had just written
-a new "sha" to disk, the notifier's save (using its older in-memory
-copy) could clobber that "sha" back to the old value -- so the app would
-keep reporting "update available" forever even though the installed
-files were already current, while a one-off manual check (not racing
-anything) would correctly report "up to date". Fixed with a lock and a
-read-modify-write helper that always merges into a freshly-read copy of
-the file instead of blind-overwriting it.
+All reads/writes of `.update_state.json` go through `_STATE_LOCK` and
+`_update_persisted_state`, which always merges into a freshly-read copy
+of the file rather than blind-overwriting a snapshot that might be
+stale by the time it's saved. See `_update_persisted_state`.
+
+UPDATE / UPDATED flags
+----------------------
+`UPDATE` (an update is pending) and `UPDATED` (up to date / just
+applied) used to be set independently, in slightly different ways, by
+three different call sites (the notifier loop, the scheduler loop, and
+run_update_flow) -- and one of those call sites computed `UPDATE` from
+its *own previous value* instead of the actual check result:
+
+    UPDATE = (status in (...)) and UPDATE is not True
+
+That makes `UPDATE` flip True/False every polling interval regardless
+of whether anything actually changed, purely because it toggles off
+whenever it was already True last time. Combined with `UPDATED` not
+being touched by that same loop at all, the two flags could disagree
+with each other and with reality depending on timing -- which is
+exactly "it says update available, then says up to date" with no real
+change in between.
+
+Fixed by making `check_for_git_update` the single source of truth: it
+derives both flags from the actual status it just computed, every time
+it's called, via `_apply_check_result_to_flags`. The notifier, the
+scheduler, and run_update_flow no longer hand-roll their own flag
+logic on top of the same result -- they just let the check set it.
 """
 
 import os
@@ -72,13 +75,17 @@ import requests
 STATE_FILENAME = ".update_state.json"
 
 # Guards every read-modify-write of the on-disk state file. Without this,
-# a background check (which re-saves the whole state dict just to record
-# repo_url/branch) can race with an apply's write of a new "sha" and
-# clobber it back to the old value -- see module docstring.
+# a background check (which persists repo_url/branch) can race with an
+# apply's write of a new "sha" and clobber it back to the old value.
 _STATE_LOCK = threading.Lock()
 
-UPDATE = False
-UPDATING = False
+# Guards UPDATE/UPDATED so they're always set together, from the same
+# check result, never independently by different call sites.
+_FLAGS_LOCK = threading.Lock()
+
+UPDATE = False      # True: an update is pending / not yet applied
+UPDATED = True      # True: up to date (or just successfully applied)
+UPDATING = False    # True: an apply is actively in progress right now
 update_state = {"status": "idle", "last": None, "details": None}
 
 # Signaled by restart_app() so all background loops can stop cleanly
@@ -159,16 +166,33 @@ def _update_persisted_state(local_path, **updates):
     Always re-reads the file right before writing, under `_STATE_LOCK`,
     so a check running concurrently with an apply (or two checks
     racing each other) can never clobber a field -- like "sha" -- that
-    the other one just wrote. This replaces the old pattern of loading
-    the whole state dict once and blindly re-saving that same snapshot
-    later, which could silently revert a just-applied commit sha back
-    to the previous one. See module docstring.
+    the other one just wrote.
     """
     with _STATE_LOCK:
         state = _load_state(local_path)
         state.update(updates)
         _save_state(local_path, state)
         return state
+
+
+def _apply_check_result_to_flags(status):
+    """
+    Single source of truth for the UPDATE / UPDATED globals.
+
+    Every call site that runs a check (the notifier loop, the scheduler
+    loop, run_update_flow) funnels through check_for_git_update, which
+    calls this at the end instead of each caller hand-rolling its own
+    (previously buggy, previously inconsistent) logic on top of the same
+    result. That guarantees the two flags always agree with each other
+    and with the actual status just computed -- no flip-flopping based
+    on a flag's own previous value, no flag left untouched on some code
+    paths but not others.
+    """
+    global UPDATE, UPDATED
+    is_pending = status in ('update_available', 'cloned')
+    with _FLAGS_LOCK:
+        UPDATE = is_pending
+        UPDATED = not is_pending
 
 
 def _github_headers():
@@ -337,12 +361,8 @@ def _spawn_restart_watcher(old_pid, args):
     Launch a tiny detached watcher that waits for `old_pid` (this
     process) to actually exit -- and therefore actually release its
     listening socket(s) -- before starting the replacement process.
-
-    This is the piece that was missing before: spawning the replacement
-    immediately and then sleeping a fixed amount before exiting cannot
-    guarantee the old process is gone by the time the new one tries to
-    bind the port. Polling for the PID to disappear guarantees the
-    ordering instead of hoping a delay was long enough.
+    Polling for the PID to disappear guarantees the ordering instead of
+    hoping a fixed delay was long enough.
     """
     if sys.platform.startswith("win"):
         arg_list = ", ".join(f"'{a}'" for a in args[1:])
@@ -382,28 +402,17 @@ def restart_app():
     still squatting on the restart port(s), then hands off to a detached
     watcher that waits for THIS process to actually die before starting
     the replacement -- and finally exits immediately.
-
-    We do NOT spawn the replacement directly and then sleep-then-exit:
-    that left a window where both the old and new process were alive
-    and fighting over the same port. We also do NOT use os.execl():
-    exec() doesn't close inherited file descriptors, so the listening
-    socket would stay bound across the exec and the "new" process would
-    immediately fail to bind against itself.
     """
     print("Restarting application...")
 
-    # Tell every SHUTDOWN_EVENT-aware background loop to stop.
     SHUTDOWN_EVENT.set()
 
-    # Flush stdout/stderr to ensure logs aren't lost.
     try:
         sys.stdout.flush()
         sys.stderr.flush()
     except Exception:
         pass
 
-    # Give background threads a short window to actually exit instead of
-    # a fixed blind sleep -- still bounded by RESTART_GRACE_SECONDS.
     deadline = time.time() + RESTART_GRACE_SECONDS
     for t in threading.enumerate():
         if t is threading.current_thread():
@@ -413,9 +422,6 @@ def restart_app():
             break
         t.join(timeout=remaining)
 
-    # Clean up any *other* stray process left over from a previous bad
-    # restart. Never touches our own PID -- our own port is released by
-    # this process actually exiting below, not by killing ourselves here.
     _shutdown_conflicting_port_users()
 
     old_pid = os.getpid()
@@ -431,17 +437,13 @@ def restart_app():
             os.execl(sys.executable, sys.executable, *sys.argv)
             return
 
-    # Exit immediately. The watcher is polling for exactly this PID to
-    # disappear before it launches the replacement, so there's no need
-    # (and no benefit) to sleep here first -- doing so would just widen
-    # the window during which nothing is serving the port for no reason.
     os._exit(0)
 
 
 def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback=None,
                     initial_message='Checking for updates', mark_updating=True):
     """Run the full check/apply lifecycle and keep update_state in sync."""
-    global UPDATE, UPDATING
+    global UPDATING
 
     repo = repo or GIT_REPO_URL
     branch = branch or GIT_BRANCH
@@ -454,13 +456,14 @@ def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback
         branch=branch,
         watch_files=UPDATE_WATCH_FILES,
     )
+    # check_for_git_update has already set UPDATE/UPDATED consistently
+    # for this result -- no need to (re)derive them here.
     update_state['last'] = info
     update_state['progress'] = 30
     update_state['message'] = 'Checked latest commit'
 
     if info['status'] == 'up_to_date':
         _set_update_state(status='up_to_date', message='Already up to date', progress=100)
-        UPDATE = False
         return info
 
     if info.get('important_change'):
@@ -485,7 +488,10 @@ def run_update_flow(repo=None, branch=None, extra_exclude=None, restart_callback
         update_state['progress'] = 95 if apply_result.get('status') == 'applied' else update_state.get('progress', 60)
         if apply_result.get('status') == 'applied':
             update_state['message'] = 'Update applied; restarting'
-            UPDATE = False
+            # We just installed the commit we checked against, so we're
+            # current as of this moment -- reflect that immediately
+            # rather than waiting for the next periodic check.
+            _apply_check_result_to_flags('up_to_date')
             if restart_callback is not None:
                 try:
                     restart_callback()
@@ -547,9 +553,10 @@ def start_manual_update(repo=None, branch=None, extra_exclude=None, restart_call
 
 
 def start_update_notifier():
-    """Background check-only notifier that updates UPDATE based on remote state."""
+    """Background check-only notifier. UPDATE/UPDATED are set inside
+    check_for_git_update itself -- this loop just needs to call it on a
+    timer, it doesn't derive or touch the flags directly."""
     def loop():
-        global UPDATE
         while not SHUTDOWN_EVENT.is_set():
             try:
                 if UPDATING:
@@ -562,7 +569,6 @@ def start_update_notifier():
                     watch_files=UPDATE_WATCH_FILES,
                 )
                 update_state['last'] = info
-                UPDATE = (info.get('status') in ('update_available', 'cloned'))
             except Exception as exc:
                 update_state['check_error'] = str(exc)
             # wait() returns early (and loop re-checks the condition)
@@ -592,9 +598,9 @@ def start_update_scheduler():
         interval = 3600
 
     def loop():
+        global UPDATING
         while not SHUTDOWN_EVENT.is_set():
             try:
-                global UPDATE, UPDATING
                 if UPDATING:
                     SHUTDOWN_EVENT.wait(10)
                     continue
@@ -606,17 +612,17 @@ def start_update_scheduler():
                     branch=branch,
                     watch_files=UPDATE_WATCH_FILES,
                 )
+                # UPDATE/UPDATED already set consistently by the check
+                # itself -- nothing to derive here.
                 update_state['last'] = info
                 update_state['progress'] = 30
                 update_state['message'] = 'Checked latest commit'
 
                 if info['status'] == 'up_to_date':
                     _set_update_state(status='up_to_date', message='Already up to date', progress=100)
-                    UPDATE = False
                     SHUTDOWN_EVENT.wait(interval)
                     continue
 
-                UPDATE = True
                 if info.get('important_change'):
                     update_state['message'] = f"Important files changed: {info.get('matched_watch_files')}"
 
@@ -637,7 +643,7 @@ def start_update_scheduler():
                     update_state['progress'] = 95 if res.get('status') == 'applied' else update_state.get('progress', 60)
                     if res.get('status') == 'applied':
                         update_state['message'] = 'Update applied; restarting'
-                        UPDATE = False
+                        _apply_check_result_to_flags('up_to_date')
                         try:
                             restart_app()
                         except Exception:
@@ -658,10 +664,11 @@ def start_update_scheduler():
 def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
     """
     Look up the latest commit on GitHub for `branch` and compare it against
-    what's currently installed. Read-only -- never downloads or modifies
-    anything (other than recording which repo/branch it checked, merged
-    in via `_update_persisted_state` so it can't clobber a concurrently
-    written "sha"). Returns a dict describing the result.
+    what's currently installed. Read-only in terms of the repo files --
+    it downloads/modifies nothing -- but it IS the single place that sets
+    the module-level UPDATE/UPDATED flags, via `_apply_check_result_to_flags`,
+    so every caller (notifier, scheduler, manual flow) stays consistent
+    with the actual result instead of each hand-rolling its own logic.
     """
     watch_files = watch_files or []
     owner, repo = _parse_owner_repo(repo_url)
@@ -679,8 +686,10 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
     _update_persisted_state(local_path, repo_url=repo_url, branch=branch)
 
     if not local_sha:
+        status = "cloned"
+        _apply_check_result_to_flags(status)
         return {
-            "status": "cloned",
+            "status": status,
             "remote_sha": remote_sha,
             "local_sha": None,
             "important_change": False,
@@ -688,8 +697,10 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
         }
 
     if local_sha == remote_sha:
+        status = "up_to_date"
+        _apply_check_result_to_flags(status)
         return {
-            "status": "up_to_date",
+            "status": status,
             "remote_sha": remote_sha,
             "local_sha": local_sha,
             "important_change": False,
@@ -707,8 +718,10 @@ def check_for_git_update(repo_url, local_path, branch="main", watch_files=None):
                 if cf == wf_norm or cf.startswith(wf_norm + "/"):
                     matched.append(cf)
 
+    status = "update_available"
+    _apply_check_result_to_flags(status)
     return {
-        "status": "update_available",
+        "status": status,
         "remote_sha": remote_sha,
         "local_sha": local_sha,
         "important_change": bool(matched),
