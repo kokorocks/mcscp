@@ -1,201 +1,312 @@
-<style type="text/css" media="all">
-  /* Container styling */
-body {
-  background-color: #0d1117; 
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  margin: 0;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Update</title>
+  <style type="text/css" media="all">
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --primary: #58a6ff;
+      --primary-hover: #318bf8;
+      --text-main: #c9d1d9;
+      --text-muted: #8b949e;
+      --console-bg: #0b1220;
+      --success: #3fb950;
+      --warning: #f0883e;
+    }
 
-.update-container {
-  text-align: center;
-  background: #161b22;
-  padding: 40px;
-  border-radius: 16px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-  border: 1px solid #30363d;
-}
+    /* Container styling */
+    body {
+      background-color: var(--bg-color); 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      color: var(--text-main);
+    }
 
-/* Animation positioning */
-.animation-wrapper {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 24px auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
+    .update-container {
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      background: var(--card-bg);
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+      border: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
-/* Dynamic Professional Spinner */
-.spinner {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border: 3px solid transparent;
-  border-top: 3px solid #58a6ff; /* Solid crisp leading edge */
-  border-right: 3px solid rgba(88, 166, 255, 0.2); /* Soft trailing edge */
-  border-radius: 50%;
-  /* Using cubic-bezier gives it a premium "whip and glide" motion instead of static rotation */
-  animation: professional-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
+    /* Animation positioning */
+    .animation-wrapper {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 24px auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-/* Faint secondary tech-ring for depth */
-.spinner::before {
-  content: '';
-  position: absolute;
-  top: -8px; left: -8px; right: -8px; bottom: -8px;
-  border: 1px solid rgba(48, 54, 61, 0.6);
-  border-left: 1px solid rgba(88, 166, 255, 0.15);
-  border-radius: 50%;
-  animation: spin-reverse 4s linear infinite;
-}
+    /* Dynamic Professional Spinner */
+    .spinner {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border: 3px solid transparent;
+      border-top: 3px solid var(--primary);
+      border-right: 3px solid rgba(88, 166, 255, 0.2);
+      border-radius: 50%;
+      animation: professional-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
 
-/* Micro server rack */
-.server-rack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 50px;
-  background: #21262d;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #30363d;
-  z-index: 2;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
-}
+    .spinner::before {
+      content: '';
+      position: absolute;
+      top: -8px; left: -8px; right: -8px; bottom: -8px;
+      border: 1px solid rgba(48, 54, 61, 0.6);
+      border-left: 1px solid rgba(88, 166, 255, 0.15);
+      border-radius: 50%;
+      animation: spin-reverse 4s linear infinite;
+    }
 
-.server-blade {
-  height: 8px;
-  background: #30363d;
-  border-radius: 3px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding-left: 6px;
-}
+    /* Micro server rack */
+    .server-rack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 44px;
+      background: #21262d;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      z-index: 2;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    }
 
-/* LED Base styling */
-.led {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  position: absolute;
-  right: 6px;
-}
+    .server-blade {
+      height: 6px;
+      background: var(--card-border);
+      border-radius: 3px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding-left: 6px;
+    }
 
-/* Middle updating LED (Steady pace, persistent writing) */
-.led.pulsing {
-  background-color: #f0883e;
-  animation: write-pulse 0.6s infinite alternate;
-}
+    /* LED Base styling */
+    .led {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      position: absolute;
+      right: 6px;
+    }
 
-/* Super-fast erratic hardware flickering */
-.led.network-1 {
-  animation: rapid-flicker-a 12s infinite linear;
-}
+    .led.pulsing {
+      background-color: var(--warning);
+      animation: write-pulse 0.6s infinite alternate;
+    }
 
-.led.network-2 {
-  animation: rapid-flicker-b 0.002s infinite linear;
-}
+    .led.network-1 {
+      animation: rapid-flicker-a 12s infinite linear;
+    }
 
-/* Text Animations */
-.loading-text {
-  color: #c9d1d9;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
+    .led.network-2 {
+      animation: rapid-flicker-b 0.002s infinite linear;
+    }
 
-.sub-text {
-  color: #8b949e;
-  font-size: 0.85rem;
-  margin-top: 8px;
-}
+    /* Text Animations */
+    .header-section {
+      margin-bottom: 24px;
+    }
 
-.dot {
-  animation: textBlink 1.4s infinite both;
-  color: #58a6ff;
-}
+    .loading-text {
+      color: var(--text-main);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin: 0 0 8px 0;
+    }
 
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
+    .sub-text {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin: 0;
+    }
 
+    .dot {
+      animation: textBlink 1.4s infinite both;
+      color: var(--primary);
+    }
 
-/* --- KEYFRAMES --- */
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* Professional variable velocity spin */
-@keyframes professional-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+    /* Progress & Status Panel */
+    .status-panel {
+      width: 100%;
+      background: var(--console-bg);
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      text-align: left;
+    }
 
-@keyframes spin-reverse {
-  0% { transform: rotate(360deg); }
-  100% { transform: rotate(0deg); }
-}
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
 
-/* Middle update LED pulse */
-@keyframes write-pulse {
-  0% { background-color: #21262d; box-shadow: none; }
-  100% { background-color: #f0883e; box-shadow: 0 0 8px #f0883e; }
-}
+    #update-status {
+      color: var(--primary);
+    }
 
-/* Erratic Hardware Flicker Array A */
-@keyframes rapid-flicker-a {
-  0%, 100%, 40%, 70% { background-color: #3fb950; box-shadow: 0 0 6px #2ea043; opacity: 1; }
-  20%, 55%, 85% { background-color: #1f5e28; box-shadow: none; opacity: 0.3; }
-}
+    .progress-track {
+      background: #0f1720;
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      border: 1px solid #1c232b;
+    }
 
-/* Erratic Hardware Flicker Array B (Slightly altered timing to avoid synchronization) */
-@keyframes rapid-flicker-b {
-  0%, 100%, 30%, 80% { background-color: #3fb950; box-shadow: 0 0 6px #2ea043; opacity: 1; }
-  15%, 50%, 90% { background-color: #1f5e28; box-shadow: none; opacity: 0.2; }
-}
+    #update-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 400ms ease, background-color 300ms ease;
+      box-shadow: 0 0 10px rgba(88, 166, 255, 0.4);
+    }
 
-@keyframes textBlink {
-  0% { opacity: .2; }
-  20% { opacity: 1; }
-  100% { opacity: .2; }
-}
-</style>
+    .console-output {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: #06090f;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #1c232b;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
 
+    .console-output span {
+      display: flex;
+      gap: 8px;
+    }
+
+    .console-output .prompt {
+      color: var(--success);
+      user-select: none;
+    }
+
+    /* Button */
+    #update-close {
+      margin-top: 24px;
+      padding: 12px 24px;
+      background: var(--primary);
+      color: var(--bg-color);
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: none;
+      width: 100%;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+
+    #update-close:hover {
+      background: var(--primary-hover);
+    }
+
+    #update-close:active {
+      transform: scale(0.98);
+    }
+
+    /* --- KEYFRAMES --- */
+    @keyframes professional-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes spin-reverse {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    @keyframes write-pulse {
+      0% { background-color: #21262d; box-shadow: none; }
+      100% { background-color: var(--warning); box-shadow: 0 0 8px var(--warning); }
+    }
+
+    @keyframes rapid-flicker-a {
+      0%, 100%, 40%, 70% { background-color: var(--success); box-shadow: 0 0 6px #2ea043; opacity: 1; }
+      20%, 55%, 85% { background-color: #1f5e28; box-shadow: none; opacity: 0.3; }
+    }
+
+    @keyframes rapid-flicker-b {
+      0%, 100%, 30%, 80% { background-color: var(--success); box-shadow: 0 0 6px #2ea043; opacity: 1; }
+      15%, 50%, 90% { background-color: #1f5e28; box-shadow: none; opacity: 0.2; }
+    }
+
+    @keyframes textBlink {
+      0% { opacity: .2; }
+      20% { opacity: 1; }
+      100% { opacity: .2; }
+    }
+  </style>
+</head>
+<body>
 
 <div class="update-container">
   <div class="animation-wrapper">
     <div class="spinner"></div>
-    
     <div class="server-rack">
-      <div class="server-blade">
-        <span class="led green network-1"></span>
-      </div>
-      <div class="server-blade">
-        <span class="led pulsing"></span>
-      </div>
-      <div class="server-blade">
-        <span class="led green network-2"></span>
-      </div>
+      <div class="server-blade"><span class="led network-1"></span></div>
+      <div class="server-blade"><span class="led pulsing"></span></div>
+      <div class="server-blade"><span class="led network-2"></span></div>
     </div>
   </div>
   
-  <div class="loading-text">
-    Updating Server<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+  <div class="header-section">
+    <h1 class="loading-text">
+      <span id="main-text">Updating Server</span><span class="dots" id="loading-dots"><span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>
+    </h1>
+    <p class="sub-text">Please do not restart the daemon</p>
   </div>
-  <p class="sub-text">Please do not restart the daemon</p>
-</div>
-<div style="position:fixed;left:0;right:0;bottom:20px;display:flex;justify-content:center">
-  <div style="width:60%;background:#0b1220;padding:12px;border-radius:8px;border:1px solid #222;color:#9aa4b2">
-    <div style="font-weight:600;margin-bottom:6px">Status: <span id="update-status">Initializing</span></div>
-    <div style="background:#0f1720;border-radius:6px;height:12px;overflow:hidden">
-      <div id="update-bar" style="height:12px;width:0%;background:#58a6ff;transition:width 400ms ease"></div>
+
+  <div class="status-panel">
+    <div class="status-header">
+      <span>Status: <span id="update-status">Initializing</span></span>
+      <span style="color: var(--text-muted); font-weight: normal; font-size: 0.75rem;">Build: <span id="update-last">-</span></span>
     </div>
-    <div style="margin-top:8px;font-size:12px;color:#8b949e">Message: <span id="update-message">Starting...</span></div>
-    <div style="margin-top:8px;font-size:12px;color:#8b949e">Last: <span id="update-last">-</span></div>
-    <button id="update-close" style="margin-top:10px;padding:10px 18px;background:#58a6ff;color:#0d1117;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:none">Back to Dashboard</button>
+    
+    <div class="progress-track">
+      <div id="update-bar"></div>
+    </div>
+    
+    <div class="console-output">
+      <span><span class="prompt">~</span> <span id="update-message">Starting process...</span></span>
+    </div>
   </div>
+
+  <button id="update-close">Return to Dashboard</button>
 </div>
 
 <script>
@@ -203,37 +314,72 @@ body {
     return ['applied','error','no_release','no_asset','already_downloaded'].includes(status);
   }
 
-  async function fetchState(){
-    try{
+  async function fetchState() {
+    try {
       const r = await fetch('/api/update/state');
-      if(!r.ok) return;
+      if (!r.ok) return;
       const j = await r.json();
+      
+      // Update Texts
       document.getElementById('update-status').innerText = j.status || 'idle';
-      document.getElementById('update-message').innerText = j.message || '';
-      const progress = j.progress !== undefined ? j.progress : (j.status === 'applied'?100:0);
-      document.getElementById('update-bar').style.width = Math.min(100,progress)+'%';
+      document.getElementById('update-message').innerText = j.message || 'Processing...';
       document.getElementById('update-last').innerText = (j.last && (j.last.tag || j.last.name)) || (j.last && j.last.path) || '-';
+
+      if(j.status === 'error' && j.error) {
+        document.getElementById('update-message').innerText = `Error: ${j.error}`;
+      }
+
+      if(j.status === 'up_to_date') {
+        window.location.href = '/';
+      }
+
+      if(j.status === 'idle'){
+        window.location.href = '/';
+      }
+      
+      // Update Progress
+      const progress = j.progress !== undefined ? j.progress : (j.status === 'applied' ? 100 : 0);
+      const progressBar = document.getElementById('update-bar');
+      progressBar.style.width = Math.min(100, progress) + '%';
+      
+      // Handle UI states based on final status
       const closeButton = document.getElementById('update-close');
       const spinner = document.querySelector('.spinner');
-      const loadingText = document.querySelector('.loading-text');
+      const mainText = document.getElementById('main-text');
+      const dots = document.getElementById('loading-dots');
+
       if (isFinalStatus(j.status)) {
-        closeButton.style.display = 'inline-block';
+        closeButton.style.display = 'block';
         if (spinner) spinner.style.animationPlayState = 'paused';
-        if (loadingText) {
-          loadingText.innerText = j.status === 'applied' ? 'Update complete' : 'Update finished';
+        if (dots) dots.style.display = 'none'; // Hide the dots cleanly
+        
+        if (j.status === 'applied') {
+          mainText.innerText = 'Update Complete';
+          progressBar.style.backgroundColor = '#3fb950'; // Turn progress green on success
+          document.getElementById('update-status').style.color = '#3fb950';
+        } else {
+          mainText.innerText = 'Update Finished';
         }
       } else {
         closeButton.style.display = 'none';
         if (spinner) spinner.style.animationPlayState = 'running';
-        if (loadingText) loadingText.innerText = 'Updating Server...';
+        if (dots) dots.style.display = 'inline';
+        mainText.innerText = 'Updating Server';
+        progressBar.style.backgroundColor = 'var(--primary)';
+        document.getElementById('update-status').style.color = 'var(--primary)';
       }
-    }catch(e){
-      // ignore
+    } catch(e) {
+      // Keep silently ignoring errors to prevent UI locking
     }
   }
-  document.getElementById('update-close').addEventListener('click', function(){
+
+  document.getElementById('update-close').addEventListener('click', function() {
     window.location.href = '/';
   });
+
   setInterval(fetchState, 1000);
   fetchState();
 </script>
+
+</body>
+</html>

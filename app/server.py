@@ -1422,7 +1422,6 @@ def servers():
             data.append({
                 "deleted": True
             })
-    print(updater.UPDATE)
     return jsonify({"servers":data, "update": updater.UPDATE})
 
 @app.route("/update")
