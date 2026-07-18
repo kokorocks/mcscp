@@ -1,0 +1,9 @@
+id: test
+name: Test
+version: 1.0.0
+
+entry: test.py
+
+depends: []
+
+enabled: true

@@ -1,0 +1,13 @@
+id: mcscpapi
+name: MCSCP API
+author: kokorocks
+version: 0.1.0
+description: official MCSCP API module
+
+entry: main.py
+
+depends: []
+
+pip-depends: ["beautifulsoup4", "html5lib", "lxml"]
+
+enabled: true

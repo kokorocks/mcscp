@@ -21,9 +21,6 @@ from main_logs import init_main_logs
 from dotenv import load_dotenv
 import updater
 
-
-
-
 listeners = {}
 server_log={}
 player_counts = {}
@@ -88,6 +85,9 @@ def _run_update_apply(info, extra_exclude=None):
 
 
 app = Flask(__name__)
+#print(f"Main app value: {app}")
+from modules import ModuleManager
+
 
 # --- auth decorator defined early so routes can use it safely
 def login_required(f):
@@ -115,7 +115,7 @@ def ensure_config_files_and_dirs():
             pass
 
     # ensure common directories exist and are safe to ignore in production
-    for d in ('minecraft_servers', 'server-imgs', 'logs', 'nodes', 'uploads', 'temp'):
+    for d in ('minecraft_servers', 'modules', 'server-imgs', 'logs', 'nodes', 'uploads', 'temp'):
         try:
             os.makedirs(d, exist_ok=True)
         except Exception:
@@ -1196,22 +1196,30 @@ def listen_for_join(sid, port):
     stop_flag = threading.Event()
     listener_stop_flags[sid] = stop_flag
 
-    print(f"[AUTOSTART] Watching port {port} for server {sid}")
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("0.0.0.0", port))
+    srv.listen(1)
+    srv.settimeout(1)
+    listener_sockets[sid] = srv
+
+    print(f"[AUTOSTART] Listening on port {port} for server {sid}")
 
     while not stop_flag.is_set():
         if str(sid) in processes:
             break
-
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                break
+            conn, _ = srv.accept()   # blocks (with 1s timeout) for a REAL incoming connection
+            conn.close()
+            print(f"[AUTOSTART] Join attempt detected on {port}; starting server {sid}")
+            start_server(sid)
+            break
+        except socket.timeout:
+            continue
         except OSError:
-            if str(sid) not in processes:
-                print(f"[AUTOSTART] Port {port} is closed; starting server {sid}")
-                start_server(sid)
+            break
 
-            time.sleep(5)
-
+    srv.close()
     listener_stop_flags.pop(sid, None)
     listener_sockets.pop(sid, None)
 

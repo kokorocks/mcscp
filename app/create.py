@@ -1278,7 +1278,6 @@ def edit_server(
         and server_type != server["type"]
     )
     
-    print('THIS THING MUST BE FALSE BECUASE THERE IS NO CHANGE AT ALL', type_changed)
     #print(server_types2.index(server_type.lower())+1,server["type"])
     #print(, server['type'], type_changed, "MAKE THIS VERSION WORK LIKE WHY IS IT NOOOWWWSAzFE")
     

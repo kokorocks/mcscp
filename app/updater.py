@@ -104,7 +104,7 @@ LOCAL_REPO_PATH = Path(__file__).resolve().parents[1]
 UPDATE_WATCH_FILES = [f.strip() for f in os.environ.get('UPDATE_WATCH_FILES', 'version.txt').split(',') if f.strip()]
 UPDATE_PRESERVE = [p.strip() for p in os.environ.get(
     'UPDATE_PRESERVE',
-    'server-config.json,users.json,node-config.json,minecraft_servers,server-imgs,logs,nodes,uploads,temp,.update_state.json,backups'
+    'server-config.json,users.json,node-config.json,minecraft_servers,modules,server-imgs,logs,nodes,uploads,temp,.update_state.json,backups'
 ).split(',') if p.strip()]
 UPDATE_CHECK_INTERVAL = int(os.environ.get('UPDATE_CHECK_INTERVAL', '300'))
 
